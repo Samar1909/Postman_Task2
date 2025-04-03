@@ -5,9 +5,11 @@ CREATE TABLE IF NOT EXISTS role_master(
 
 CREATE TABLE IF NOT EXISTS users(
     user_id SERIAL PRIMARY KEY,
-    username VARCHAR(40) UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    username TEXT NOT NULL,
+    password_hash TEXT,
     role_id INT,
+    created_at TIMESTAMP DEFAULT NOW(),
     FOREIGN KEY(role_id) REFERENCES role_master(id) ON DELETE SET NULL
 );
 
@@ -23,7 +25,7 @@ CREATE TABLE IF NOT EXISTS skills(
 );
 
 CREATE TABLE IF NOT EXISTS applicant_profile(
-    user_id INT PRIMARY KEY,
+    user_id INT PRIMARY KEY,    
     first_name VARCHAR(40),
     last_name VARCHAR(40),
     skill_id INT,

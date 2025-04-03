@@ -1,21 +1,29 @@
 package main
 
 import (
+	"home/controllers"
+	"home/initializers"
+	"home/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
+func init() {
+	initializers.LoadEnvVariables()
+	initializers.ConnectToDb()
+}
+
 func main() {
 	r := gin.Default()
-
-	r.LoadHTMLGlob("templates/*.html")
-
 	r.GET("/", func(c *gin.Context) {
-		c.String(200, "Hello WOrld!")
+		c.JSON(200, gin.H{
+			"message": "hello world",
+		})
 	})
 
-	r.GET("/login", func(c *gin.Context) {
-		c.HTML(200, "login.html", nil)
-	})
+	r.POST("/signup", controllers.SignUp)
+	r.POST("/login", controllers.Login)
+	r.GET("/validate", middleware.AuthRequired, controllers.Validate)
 
-	r.Run(":8000")
+	r.Run()
 }

@@ -34,7 +34,9 @@ type Skill struct {
 
 type User struct {
 	UserID       int32
+	Email        string
 	Username     string
-	PasswordHash string
+	PasswordHash sql.NullString
 	RoleID       sql.NullInt32
+	CreatedAt    sql.NullTime
 }

@@ -7,10 +7,51 @@ package products
 
 import (
 	"context"
+	"database/sql"
 )
 
+const createNewUser = `-- name: CreateNewUser :exec
+INSERT INTO users (email, username, password_hash, role_id)
+VALUES ($1, $2, $3, $4)
+`
+
+type CreateNewUserParams struct {
+	Email        string
+	Username     string
+	PasswordHash sql.NullString
+	RoleID       sql.NullInt32
+}
+
+func (q *Queries) CreateNewUser(ctx context.Context, arg CreateNewUserParams) error {
+	_, err := q.db.ExecContext(ctx, createNewUser,
+		arg.Email,
+		arg.Username,
+		arg.PasswordHash,
+		arg.RoleID,
+	)
+	return err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT user_id, email, username, password_hash, role_id, created_at FROM users WHERE email = $1 LIMIT 1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.RoleID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
-SELECT user_id, username, password_hash, role_id FROM users WHERE user_id = $1 LIMIT 1
+SELECT user_id, email, username, password_hash, role_id, created_at FROM users WHERE user_id = $1 LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, userID int32) (User, error) {
@@ -18,9 +59,11 @@ func (q *Queries) GetUserByID(ctx context.Context, userID int32) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.UserID,
+		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.RoleID,
+		&i.CreatedAt,
 	)
 	return i, err
 }

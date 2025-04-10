@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign Up Page</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <div class="container">
+        <!-- Messages Section -->
+        <div class="row justify-content-center mt-3">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+                {{ if .message }}
+                    <div class="alert alert-{{ .messageType }} alert-dismissible fade show" role="alert">
+                        {{ .message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    
+                {{ end}}
+            </div>
+        </div>
+         <!-- SignUp Form Section -->
+        <div class="row justify-content-center min-vh-100 align-items-center">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+                <div class="card shadow-sm">
+                    <div class="card-body p-4 p-sm-5">
+                        <h1 class="card-title text-center mb-4">Sign Up</h1>
+                        <form method="post" action="">
+                            <input type="hidden" name="csrf_token" value="{{ .csrf_token }}">
+                            <div class="mb-3">
+                                <label for="email" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="email" name="email" value = "{{.email}}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" name="username" value = "{{.username}}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password1" class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password1" name="password1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password2" class="form-label">Enter Password Again</label>
+                                <input type="password" class="form-control" id="password2" name="password2" required>
+                            </div>
+
+                            <!-- Radio button for role of user -->
+                            <fieldset>
+                                <legend>Role</legend>
+                                <div class="mb-3">
+                                    <input type="radio" id="super_admin" name="role" value="Super Admin" checked>
+                                    <label for="super_admin">Super Admin</label>
+                                    <br>
+                                    <input type="radio" id="recruiter" name="role" value="Recruiter">
+                                    <label for="recruiter">Recruiter</label>
+                                    <br>
+                                    <input type="radio" id="applicant" name="role" value="Applicant">
+                                    <label for="applicant">Applicant</label>
+                                </div>
+                            </fieldset>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">Sign Up</button>
+                            </div>
+
+                            <div class="position-relative my-4">
+                                <hr>
+                                <p class="text-center position-absolute top-50 start-50 translate-middle bg-white px-3">or</p>
+                            </div>
+                           
+                            <div class="d-grid">
+                                <a href="#" class="btn btn-outline-dark btn-lg">
+                                    <i class="fab fa-google me-2"></i> Sign in / Sign Up with Google
+                                </a>
+                            </div>
+
+                            <hr class="my-4">
+                            <div class="text-center">
+                                <p class="mb-0">Already have an account? <a href="/login" class="text-decoration-none">Sign In</a></p>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

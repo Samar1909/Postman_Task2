@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"home/initializers"
 	"home/products"
 	"net/http"
@@ -17,99 +18,188 @@ import (
 func SignUp(c *gin.Context) {
 	ctx := context.Background()
 
-	var body struct {
-		Email     string
-		Username  string
-		Password1 string
-		Password2 string
-		Role      string
-	}
+	csrf_token, err := c.Cookie("CSRF_Token")
 
-	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to read request body",
-		})
-		return
-	}
-
-	if body.Password1 != body.Password2 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":     "The 2 passwords do not match",
-			"email":     body.Email,
-			"username":  body.Username,
-			"Password1": body.Password1,
-			"password2": body.Password2,
-		})
-		return
-	}
-
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password1), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to hash password",
-		})
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+	formToken := c.PostForm("csrf_token")
+
+	if csrf_token != formToken {
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
 
-	var role_id int
-	switch body.Role {
-	case "super_admin":
-		role_id = 1
-	case "recruiter":
-		role_id = 2
-	case "applicant":
-		role_id = 3
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "CSRF_Token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+
+	Email := c.PostForm("email")
+	Username := c.PostForm("username")
+	Password1 := c.PostForm("password1")
+	Password2 := c.PostForm("password2")
+	Role := c.PostForm("role")
+
+	if Password1 != Password2 {
+		c.HTML(http.StatusOK, "signup.html", gin.H{
+			"email":       Email,
+			"username":    Username,
+			"password1":   Password1,
+			"password2":   Password2,
+			"csrf_token":  csrf_token,
+			"message":     "The 2 passwords do not match",
+			"messageType": "danger",
+		})
+		return
 	}
 
 	queries := products.New(initializers.DB)
-
-	err = queries.CreateNewUser(ctx, products.CreateNewUserParams{
-		Email:        body.Email,
-		Username:     body.Username,
-		PasswordHash: sql.NullString{String: string(hash), Valid: true},
-		RoleID:       sql.NullInt32{Int32: int32(role_id), Valid: true},
-	})
+	_, err = queries.GetUserByEmail(ctx, Email)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "User with this email already exists",
+		hash, err := bcrypt.GenerateFromPassword([]byte(Password1), bcrypt.DefaultCost)
+		if err != nil {
+			c.HTML(http.StatusOK, "signup.html", gin.H{
+				"email":       Email,
+				"username":    Username,
+				"password1":   Password1,
+				"password2":   Password2,
+				"csrf_token":  csrf_token,
+				"message":     "Failed to hash password",
+				"messageType": "danger",
+			})
+			return
+		}
+
+		var role_id int
+		switch Role {
+		case "Super Admin":
+			role_id = 1
+		case "Recruiter":
+			role_id = 2
+		case "Applicant":
+			role_id = 3
+		}
+
+		newUser, err := queries.CreateNewUser(ctx, products.CreateNewUserParams{
+			Email:        Email,
+			Username:     Username,
+			PasswordHash: sql.NullString{String: string(hash), Valid: true},
+			RoleID:       sql.NullInt32{Int32: int32(role_id), Valid: true},
+		})
+		if err != nil {
+			c.HTML(http.StatusOK, "signup.html", gin.H{
+				"email":       Email,
+				"username":    Username,
+				"password1":   Password1,
+				"password2":   Password2,
+				"csrf_token":  csrf_token,
+				"message":     err.Error(),
+				"messageType": "danger",
+			})
+			return
+		}
+		//making user profile
+		if role_id == 2 {
+			err := queries.CreateRecruiterProfile(ctx, int32(newUser.UserID))
+			if err != nil {
+				c.HTML(http.StatusOK, "signup.html", gin.H{
+					"email":       Email,
+					"username":    Username,
+					"password1":   Password1,
+					"password2":   Password2,
+					"csrf_token":  csrf_token,
+					"message":     err.Error(),
+					"messageType": "danger",
+				})
+				return
+			}
+		} else if role_id == 3 {
+			err := queries.CreateApplicantProfile(ctx, int32(newUser.UserID))
+			if err != nil {
+				c.HTML(http.StatusOK, "signup.html", gin.H{
+					"email":       Email,
+					"username":    Username,
+					"password1":   Password1,
+					"password2":   Password2,
+					"csrf_token":  csrf_token,
+					"message":     err.Error(),
+					"messageType": "danger",
+				})
+				return
+			}
+		}
+		c.SetCookie("signup_success", "Your account was created successfully! You can now Log In", 10, "/", "", false, false)
+		c.Redirect(http.StatusFound, "login")
+	} else {
+		c.HTML(http.StatusOK, "signup.html", gin.H{
+			"email":       Email,
+			"username":    Username,
+			"password1":   Password1,
+			"password2":   Password2,
+			"csrf_token":  csrf_token,
+			"message":     "The user with this email already exists",
+			"messageType": "danger",
 		})
 		return
 	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "User created successfully",
-	})
 }
 
 func Login(c *gin.Context) {
 	ctx := context.Background()
 
-	var body struct {
-		Email    string
-		Password string
+	csrf_token, err := c.Cookie("CSRF_Token")
+	if err != nil {
+		c.AbortWithStatus(http.StatusUnauthorized)
 	}
+	formToken := c.PostForm("csrf_token")
 
-	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed reading request body",
-		})
+	if csrf_token != formToken {
+		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
+
+	//expiring the cookie after verification
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "CSRF_Token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+
+	Email := c.PostForm("email")
+	Password := c.PostForm("password")
 
 	queries := products.New(initializers.DB)
 
-	req_user, err := queries.GetUserByEmail(ctx, body.Email)
+	req_user, err := queries.GetUserByEmail(ctx, Email)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "The user with requested email does not exist",
+		c.HTML(http.StatusOK, "login.html", gin.H{
+			"email":       Email,
+			"password":    Password,
+			"message":     "Invalid email or password",
+			"messageType": "danger",
 		})
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(req_user.PasswordHash.String), []byte(body.Password))
+	err = bcrypt.CompareHashAndPassword([]byte(req_user.PasswordHash.String), []byte(Password))
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Invalid email or password",
+		c.HTML(http.StatusOK, "login.html", gin.H{
+			"email":       Email,
+			"password":    Password,
+			"message":     "Invalid email or password",
+			"messageType": "danger",
 		})
 		return
 	}
@@ -123,16 +213,21 @@ func Login(c *gin.Context) {
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to create JWT Token",
+		c.HTML(http.StatusOK, "login.html", gin.H{
+			"email":       Email,
+			"password":    Password,
+			"message":     "Failed to create JWT Token",
+			"messageType": "danger",
 		})
 		return
 	}
 
 	//sending cookie back to client in form of cookie
+	fmt.Println("I am here")
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
-	c.JSON(http.StatusOK, gin.H{})
+	c.SetCookie("login_success", fmt.Sprintf("Successfully logged in as %s", req_user.Username), 10, "/", "", false, false)
+	c.Redirect(http.StatusFound, "/")
 
 }
 

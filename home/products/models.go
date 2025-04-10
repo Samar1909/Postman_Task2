@@ -17,9 +17,15 @@ type ApplicantProfile struct {
 	ResumeData []byte
 }
 
-type RecruiterProfile struct {
-	UserID      int32
+type JobPosting struct {
+	PostingID   int32
 	CompanyName string
+}
+
+type RecruiterProfile struct {
+	UserID             int32
+	CompanyName        sql.NullString
+	CompanyDescription sql.NullString
 }
 
 type RoleMaster struct {
@@ -30,6 +36,11 @@ type RoleMaster struct {
 type Skill struct {
 	SkillID int32
 	Name    sql.NullString
+}
+
+type SkillsReq struct {
+	SkillID   int32
+	PostingID int32
 }
 
 type User struct {

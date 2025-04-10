@@ -10,9 +10,18 @@ import (
 	"database/sql"
 )
 
-const createNewUser = `-- name: CreateNewUser :exec
+const createApplicantProfile = `-- name: CreateApplicantProfile :exec
+INSERT INTO applicant_profile(user_id) VALUES ($1)
+`
+
+func (q *Queries) CreateApplicantProfile(ctx context.Context, userID int32) error {
+	_, err := q.db.ExecContext(ctx, createApplicantProfile, userID)
+	return err
+}
+
+const createNewUser = `-- name: CreateNewUser :one
 INSERT INTO users (email, username, password_hash, role_id)
-VALUES ($1, $2, $3, $4)
+VALUES ($1, $2, $3, $4) RETURNING user_id, email, username, password_hash, role_id, created_at
 `
 
 type CreateNewUserParams struct {
@@ -22,14 +31,61 @@ type CreateNewUserParams struct {
 	RoleID       sql.NullInt32
 }
 
-func (q *Queries) CreateNewUser(ctx context.Context, arg CreateNewUserParams) error {
-	_, err := q.db.ExecContext(ctx, createNewUser,
+func (q *Queries) CreateNewUser(ctx context.Context, arg CreateNewUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, createNewUser,
 		arg.Email,
 		arg.Username,
 		arg.PasswordHash,
 		arg.RoleID,
 	)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.RoleID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createRecruiterProfile = `-- name: CreateRecruiterProfile :exec
+INSERT INTO recruiter_profile(user_id) VALUES ($1)
+`
+
+func (q *Queries) CreateRecruiterProfile(ctx context.Context, userID int32) error {
+	_, err := q.db.ExecContext(ctx, createRecruiterProfile, userID)
 	return err
+}
+
+const getApplicantProfile = `-- name: GetApplicantProfile :one
+SELECT user_id, first_name, last_name, skill_id, resume_name, resume_data FROM applicant_profile WHERE user_id = $1 LIMIT 1
+`
+
+func (q *Queries) GetApplicantProfile(ctx context.Context, userID int32) (ApplicantProfile, error) {
+	row := q.db.QueryRowContext(ctx, getApplicantProfile, userID)
+	var i ApplicantProfile
+	err := row.Scan(
+		&i.UserID,
+		&i.FirstName,
+		&i.LastName,
+		&i.SkillID,
+		&i.ResumeName,
+		&i.ResumeData,
+	)
+	return i, err
+}
+
+const getRecruiterProfile = `-- name: GetRecruiterProfile :one
+SELECT user_id, company_name, company_description FROM recruiter_profile WHERE user_id = $1 LIMIT 1
+`
+
+func (q *Queries) GetRecruiterProfile(ctx context.Context, userID int32) (RecruiterProfile, error) {
+	row := q.db.QueryRowContext(ctx, getRecruiterProfile, userID)
+	var i RecruiterProfile
+	err := row.Scan(&i.UserID, &i.CompanyName, &i.CompanyDescription)
+	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
@@ -66,4 +122,34 @@ func (q *Queries) GetUserByID(ctx context.Context, userID int32) (User, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const updateRecruiterProfile = `-- name: UpdateRecruiterProfile :exec
+UPDATE recruiter_profile SET company_name = $1, company_description = $2 WHERE user_id = $3
+`
+
+type UpdateRecruiterProfileParams struct {
+	CompanyName        sql.NullString
+	CompanyDescription sql.NullString
+	UserID             int32
+}
+
+func (q *Queries) UpdateRecruiterProfile(ctx context.Context, arg UpdateRecruiterProfileParams) error {
+	_, err := q.db.ExecContext(ctx, updateRecruiterProfile, arg.CompanyName, arg.CompanyDescription, arg.UserID)
+	return err
+}
+
+const updateUser = `-- name: UpdateUser :exec
+UPDATE users SET email = $1, username = $2 WHERE user_id = $3
+`
+
+type UpdateUserParams struct {
+	Email    string
+	Username string
+	UserID   int32
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
+	_, err := q.db.ExecContext(ctx, updateUser, arg.Email, arg.Username, arg.UserID)
+	return err
 }

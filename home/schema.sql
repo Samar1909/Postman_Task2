@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS users(
 
 CREATE TABLE IF NOT EXISTS recruiter_profile(
     user_id INT PRIMARY KEY,
-    company_name VARCHAR(50) NOT NULL, 
+    company_name VARCHAR(50) UNIQUE,
+    company_description TEXT,
     FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
@@ -33,6 +34,20 @@ CREATE TABLE IF NOT EXISTS applicant_profile(
     resume_data BYTEA,
     FOREIGN KEY(skill_id) REFERENCES skills(skill_id) ON DELETE SET NULL,
     FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS job_posting(
+    posting_id SERIAL PRIMARY KEY,
+    company_name VARCHAR(50) NOT NULL,
+    FOREIGN KEY(company_name) REFERENCES recruiter_profile(company_name) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS skills_req(
+    skill_id INT,
+    posting_id INT,
+    PRIMARY KEY(skill_id, posting_id),
+    FOREIGN KEY(skill_id) REFERENCES skills(skill_id) ON DELETE CASCADE,
+    FOREIGN KEY(posting_id) REFERENCES job_posting(posting_id) ON DELETE CASCADE
 );
 
 

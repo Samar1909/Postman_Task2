@@ -86,5 +86,6 @@ func AuthRequired(c *gin.Context) {
 	}
 
 	// 7. Let request continue
+	fmt.Println("out of authrequired middleware")
 	c.Next()
 }

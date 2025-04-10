@@ -1,0 +1,42 @@
+<nav class="navbar navbar-expand-lg bg-dark border-bottom border-body" data-bs-theme="dark">
+    <div class="container">
+        <a class="navbar-brand" href="/applicant/home">LinkedIn Clone</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link {{block "home_active" .}}{{end}}" href="/applicant/home">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{block "add_job_active" .}}{{end}}" href="#">Add a New Job Posting</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {{block "profile_active" .}}{{end}}" href="#">Profile</a>
+                </li>
+            </ul>
+            <form class="d-flex" role="search">
+                <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
+                <button class="btn btn-outline-success" type="submit">Search</button>
+            </form>
+            <div class="btn-group ms-3">
+                <a href="/logout/">
+                    <button type="button" class="btn btn-primary" aria-expanded="false">Log Out</button>
+                </a>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<main role="main" class="container">
+    <div class="row">
+        <div class="col-md-8">
+            {{if .message}}
+            <div class="alert alert-{{.messageType}} alert-dismissible fade show" role="alert">
+                {{.message}}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {{end}}
+            
+        

@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"home/products"
 	"net/http"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func AllowedGroups(reqRoleID int) gin.HandlerFunc {
+	fmt.Println("in the allowed groups middleware")
 	return func(c *gin.Context) {
 		user, exists := c.Get("user")
 		if !exists {
@@ -27,7 +29,7 @@ func AllowedGroups(reqRoleID int) gin.HandlerFunc {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-
+		fmt.Println("out of allowed groups middleware")
 		c.Next()
 	}
 

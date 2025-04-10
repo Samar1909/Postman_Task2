@@ -57,7 +57,6 @@ func main() {
 		}
 	})
 	r.POST("/login", controllers.Login)
-	r.GET("/validate", middleware.AuthRequired, controllers.Validate)
 	r.GET("/super_admin/home", middleware.AuthRequired, middleware.AllowedGroups(1), controllers.Super_admin_home)
 
 	r.GET("/recruiter/home/", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterHome)
@@ -94,6 +93,8 @@ func main() {
 
 		c.HTML(http.StatusOK, "recruiter_updateProfile.html", gin.H{
 			"csrf_token":          formToken,
+			"profile_active":      "active",
+			"title":               "Update Profile",
 			"email":               req_user.Email,
 			"username":            req_user.Username,
 			"company_name":        req_userProfile.CompanyName.String,
@@ -103,6 +104,6 @@ func main() {
 
 	r.POST("recruiter/updateProfile/", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterUpdateProfile)
 	r.GET("applicant/home", middleware.AuthRequired, middleware.AllowedGroups(3))
-
+	r.GET("logout/", middleware.AuthRequired, middleware.CSRFMiddleware, controllers.LogOut)
 	r.Run()
 }

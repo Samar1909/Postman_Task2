@@ -1,29 +1,25 @@
-{{ define "title" }}Home{{ end }}
+{{template  "header.html" .}}
 
-{{ define "content" }}
-    <h1 class = "border-bottom mb-4">Update Profile</h1>
-    <form method = "post" action = "">
-        <input type="hidden" name="csrf_token" value="{{ .csrf_token }}">
-        <div class="mb-3">
-            <label for="email" class="form-label">Email</label>
-            <input type="text" class="form-control" id="email" name="email" value = "{{ .email }}"required>
-        </div>
-        <div class="mb-3">
-            <label for="email" class="form-label">Username</label>
-            <input type="text" class="form-control" id="username" name="username" value = "{{ .username }}"required>
-        </div>
-        <div class="mb-3">
-            <label for="email" class="form-label">Company Name</label>
-            <input type="text" class="form-control" id="company_name" name="company_name" value = "{{ .company_name }}"required>
-        </div>
-        <div class="mb-3">
-            <label for="email" class="form-label">company_description</label>
-            <input type="text" class="form-control" id="company_description" name="company_description" value = "{{ .company_description }}"required>
-        </div>
-        <div>
-            <button class = "btn btn-primary" type="submit">Update Profile</button>
-        </div>
-    </form>
-{{ end }}
-
-{{ template "recruiter_base" . }}
+{{template "recruiter_menu.html" .}}
+<h1 class="border-bottom mb-4">Update Profile</h1>
+<form method="post" action="">
+    <input type="hidden" name="csrf_token" value="{{ .csrf_token }}">
+    <div class="mb-3">
+        <label for="email" class="form-label">Email</label>
+        <input type="text" class="form-control" id="email" name="email" value="{{ .email }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="username" class="form-label">Username</label>
+        <input type="text" class="form-control" id="username" name="username" value="{{ .username }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="company_name" class="form-label">Company Name</label>
+        <input type="text" class="form-control" id="company_name" name="company_name" value="{{ .company_name }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="company_description" class="form-label">Company Description</label>
+        <input type="text" class="form-control" id="company_description" name="company_description" value="{{ .company_description }}" required>
+    </div>
+    <button class="btn btn-primary" type="submit">Update Profile</button>
+</form>
+{{template "footer.html" .}}

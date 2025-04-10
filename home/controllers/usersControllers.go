@@ -231,8 +231,18 @@ func Login(c *gin.Context) {
 
 }
 
-func Validate(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"message": "I am logged in",
-	})
+func LogOut(c *gin.Context) {
+	for _, cookie := range c.Request.Cookies() {
+		http.SetCookie(c.Writer, &http.Cookie{
+			Name:     cookie.Name,
+			Value:    "",
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   false,
+			SameSite: http.SameSiteStrictMode,
+			Expires:  time.Unix(0, 0),
+			MaxAge:   -1,
+		})
+	}
+	c.Redirect(http.StatusFound, "/login")
 }

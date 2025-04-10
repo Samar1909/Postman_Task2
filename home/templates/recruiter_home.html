@@ -1,8 +1,6 @@
-{{ define "recruiter_home.html" }}
-  {{ template "recruiter_base" . }}
-{{ end }}
+{{template  "header.html" .}}
 
-{{ define "title" }}Home{{ end }}
-{{ define "content" }}
-<h1 class = "border-bottom mb-4">Welcome {{ .username }}</h1>
-{{ end }}
+{{template "recruiter_menu.html" .}}
+<h1 class="border-bottom mb-4">Welcome {{.username}}</h1>
+
+{{template "footer.html" .}}

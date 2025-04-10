@@ -16,11 +16,15 @@ func RecruiterHome(c *gin.Context) {
 	user, exists := c.Get("user")
 	if !exists {
 		c.AbortWithStatus(http.StatusUnauthorized)
+		return
 	}
+
 	req_user := user.(products.User)
-	fmt.Println(req_user.Username)
+
 	c.HTML(http.StatusOK, "recruiter_home.html", gin.H{
-		"username": req_user.Username,
+		"username":    req_user.Username,
+		"home_active": "active",
+		"title":       "Home",
 	})
 }
 
@@ -72,6 +76,8 @@ func RecruiterUpdateProfile(c *gin.Context) {
 	if Email == "" || Username == "" || CompanyName == "" || CompanyDescription == "" {
 		c.HTML(http.StatusFound, "recruiter_updateProfile.html", gin.H{
 			"csrf_token":          formToken,
+			"profile_active":      "active",
+			"title":               "Update Profile",
 			"email":               Email,
 			"username":            Username,
 			"company_name":        CompanyName,
@@ -93,6 +99,8 @@ func RecruiterUpdateProfile(c *gin.Context) {
 		} else {
 			c.HTML(http.StatusFound, "recruiter_updateProfile.html", gin.H{
 				"csrf_token":          formToken,
+				"profile_active":      "active",
+				"title":               "Update Profile",
 				"email":               Email,
 				"username":            Username,
 				"company_name":        CompanyName,
@@ -114,6 +122,8 @@ func RecruiterUpdateProfile(c *gin.Context) {
 		if err != nil {
 			c.HTML(http.StatusFound, "recruiter_updateProfile.html", gin.H{
 				"csrf_token":          formToken,
+				"profile_active":      "active",
+				"title":               "Update Profile",
 				"email":               Email,
 				"username":            Username,
 				"company_name":        CompanyName,
@@ -127,10 +137,13 @@ func RecruiterUpdateProfile(c *gin.Context) {
 		err = queries.UpdateRecruiterProfile(ctx, products.UpdateRecruiterProfileParams{
 			CompanyName:        sql.NullString{String: CompanyName, Valid: CompanyName != ""},
 			CompanyDescription: sql.NullString{String: CompanyDescription, Valid: CompanyDescription != ""},
+			UserID:             req_user.UserID,
 		})
 		if err != nil {
 			c.HTML(http.StatusFound, "recruiter_updateProfile.html", gin.H{
 				"csrf_token":          formToken,
+				"profile_active":      "active",
+				"title":               "Update Profile",
 				"email":               Email,
 				"username":            Username,
 				"company_name":        CompanyName,

@@ -1,0 +1,28 @@
+{{template  "header.html" .}}
+
+{{template "recruiter_menu.html" .}}
+<h1 class = "border-bottom mb-3">Job Postings</h1>
+<h5 class = "text-secondary">(You are only seeing jobs related to your skills)</h5>
+     
+<div class = "container content-section">
+    <table class="table">
+        <thead>
+        <tr>
+            <th scope="col">Job Title</th>
+            <th scope="col">Company Name</th>
+            <th scope="col">Posting Date</th>
+       </tr>
+        </thead>
+        <tbody>
+            {{range .job_postings }}
+            <tr>
+                <th scope="row"><a href = "/recruiter/jobPostings/{{.PostingID}}">{{.JobTitle.String}}</a></th>
+                <td>{{.CompanyName.String}}</td>
+                <td>{{.PostingDate}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div> 
+
+{{template "footer.html" .}}

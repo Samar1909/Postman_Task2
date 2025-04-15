@@ -1,17 +1,23 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"home/initializers"
 	"home/products"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ledongthuc/pdf"
 )
 
 func RecruiterHome(c *gin.Context) {
@@ -309,5 +315,104 @@ func RecruiterNewJobPosting(c *gin.Context) {
 	}
 
 	c.Redirect(http.StatusFound, "/recruiter/home/")
+
+}
+
+func RecruiterResumeImport(c *gin.Context) {
+	ctx := context.Background()
+	queries := products.New(initializers.DB)
+	posting_id := c.Param("posting_id")
+	user_id := c.Param("user_id")
+	user_idInt, err := strconv.Atoi(user_id)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	fileName, err := queries.GetApplicantResume(ctx, int32(user_idInt))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch file from database",
+		})
+		return
+	}
+
+	filePath := "resume/" + fileName.String
+
+	f, r, err := pdf.Open(filePath)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	defer f.Close()
+
+	var buf bytes.Buffer
+	b, err := r.GetPlainText()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	buf.ReadFrom(b)
+	data := buf.String()
+	api_key := os.Getenv("GEMINI_API_KEY")
+
+	api_url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=%s", api_key)
+
+	prompt := fmt.Sprintf(
+		"Extract key information from the following data :- First Name, Last Name, School, College, Age , Skills, Key Projects, Companies in which the applicant has worked.Handle the case of student or 0 companies. Given Data - %s. In the final output there should be no special charecter like '*'(asterisk strictly not allowed) etc. except new-line charecter. Brackets and spaces are allowed", data)
+
+	request := RequestData{
+		Contents: []ContentData{
+			{
+				Parts: []PartsData{
+					{
+						Text: prompt,
+					},
+				},
+			},
+		},
+	}
+
+	json_data, err := json.Marshal(request)
+	if err != nil {
+		log.Fatal(err)
+	}
+	resp, err := http.Post(api_url, "application/json", bytes.NewBuffer(json_data))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var dat ResponseData
+
+	if err := json.Unmarshal(body, &dat); err != nil {
+		log.Fatal(err)
+	}
+	var responseText string
+
+	if len(dat.Candidates) > 0 && len(dat.Candidates[0].Content.Parts) > 0 {
+		responseText = dat.Candidates[0].Content.Parts[0].Text
+	} else {
+		log.Fatal("Error geting response from Gemini")
+	}
+
+	myHTMLResponse := strings.ReplaceAll(responseText, "\n", "<br>")
+
+	fmt.Println(myHTMLResponse)
+
+	c.SetCookie("resume_parse", myHTMLResponse, 5, "/", "", false, true)
+	redirect_url := fmt.Sprintf("/recruiter/jobPostings/%s/applicants/%s", posting_id, user_id)
+	c.Redirect(http.StatusFound, redirect_url)
 
 }

@@ -116,5 +116,20 @@ JOIN recruiter_profile
 ON recruiter_profile.user_id = job_posting.user_id
 WHERE jobposting_applicants.user_id = $1;
 
+-- name: GetJobPosting_recruiters :many
+SELECT DISTINCT job_posting.job_title, job_posting.posting_id, job_posting.posting_date, recruiter_profile.company_name
+FROM job_posting
+JOIN recruiter_profile
+ON job_posting.user_id = recruiter_profile.user_id
+WHERE recruiter_profile.user_id = $1 AND job_posting.job_title IS NOT NULL AND job_posting.job_description IS NOT NULL;
+
+-- name: GetJobApplicants :many
+SELECT DISTINCT jobposting_applicants.user_id, jobposting_applicants.posting_id, users.username, users.email, users.user_id, job_posting.job_title
+FROM jobposting_applicants
+JOIN users
+ON jobposting_applicants.user_id = users.user_id
+JOIN job_posting
+ON job_posting.posting_id = jobposting_applicants.posting_id
+WHERE jobposting_applicants.posting_id = $1;
 
 

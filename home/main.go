@@ -8,6 +8,7 @@ import (
 	"home/initializers"
 	"home/middleware"
 	"home/products"
+	"html/template"
 	"log"
 	"net/http"
 	"strconv"
@@ -191,6 +192,190 @@ func main() {
 	r.POST("/recruiter/jobPosting/addSKill", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterAddSkill)
 	r.GET("/recruiter/jobPosting/addSKill/:skill_id/:posting_id", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterDeleteSkill)
 	r.POST("/recruiter/jobPosting/create", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterNewJobPosting)
+	r.GET("/recruiter/jobPostings/all", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+		user, exists := c.Get("user")
+		if !exists {
+			fmt.Println("1")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "CSRF verification failed",
+			})
+			return
+		}
+		req_user, ok := user.(products.User)
+		if !ok {
+			fmt.Println("2")
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "CSRF verification failed",
+			})
+			return
+		}
+
+		jobPostings, err := queries.GetJobPosting_recruiters(ctx, req_user.UserID)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.HTML(http.StatusOK, "recruiter_jobPostingList.html", gin.H{
+			"job_postings":    jobPostings,
+			"job_list_active": "active",
+			"title":           "Job Postings",
+		})
+	})
+
+	r.GET("/recruiter/jobPostings/:posting_id", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+		posting_id := c.Param("posting_id")
+		posting_idInt, err := strconv.Atoi(posting_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		job_posting, err := queries.GetJobPosting(ctx, int32(posting_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		recruiter_profile, err := queries.GetRecruiterProfile(ctx, job_posting.UserID.Int32)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		skills_req, err := queries.GetRequiredSkills(ctx, job_posting.PostingID)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		recruiter_user, err := queries.GetUserByID(ctx, job_posting.UserID.Int32)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		var postingDate string
+
+		if job_posting.PostingDate.Valid {
+			postingDate = job_posting.PostingDate.Time.Format("2006-01-02")
+			fmt.Println("Posting Date:", postingDate)
+		} else {
+			log.Fatal("Posting date is null")
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		c.HTML(http.StatusOK, "recruiter_jobPostingDetail.html", gin.H{
+			"title":             job_posting.JobTitle.String,
+			"job_posting":       job_posting,
+			"recruiter_profile": recruiter_profile,
+			"skills_req":        skills_req,
+			"recruiter_user":    recruiter_user,
+			"posting_date":      postingDate,
+		})
+
+	})
+	r.GET("/recruiter/jobPostings/:posting_id/applicants", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+		posting_id := c.Param("posting_id")
+		posting_idInt, err := strconv.Atoi(posting_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		results, err := queries.GetJobApplicants(ctx, int32(posting_idInt))
+		c.HTML(http.StatusOK, "recruiter_jobApplicantsList.html", gin.H{
+			"title":     fmt.Sprintf("Job Applicants for %s", results[0].JobTitle.String),
+			"results":   results,
+			"Job_Title": results[0].JobTitle.String,
+		})
+	})
+	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+		posting_id := c.Param("posting_id")
+		user_id := c.Param("user_id")
+		user_idInt, err := strconv.Atoi(user_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		user, err := queries.GetUserByID(ctx, int32(user_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		userProfile, err := queries.GetApplicantProfile(ctx, int32(user_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		userSkills, err := queries.GetApplicantSkills(ctx, user.UserID)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		resume_parse, err := c.Cookie("resume_parse")
+		var resume_parseText template.HTML
+
+		if err == nil && resume_parse != "" {
+			// Cookie exists and has a value
+			resume_parseText = template.HTML(resume_parse)
+			// Clear the cookie after using it
+			c.SetCookie("resume_parse", "", -1, "/", "", false, false)
+
+		}
+		c.HTML(http.StatusOK, "recruiter_jobApplicantsDetail.html", gin.H{
+			"title":        user.Username,
+			"user":         user,
+			"userProfile":  userProfile,
+			"posting_id":   posting_id,
+			"userSkills":   userSkills,
+			"resume_parse": resume_parseText,
+		})
+	})
+	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id/resume/download", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+		posting_id := c.Param("posting_id")
+		user_id := c.Param("user_id")
+		user_idInt, err := strconv.Atoi(user_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		fileName, err := queries.GetApplicantResume(ctx, int32(user_idInt))
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Failed to fetch file from database",
+			})
+			return
+		}
+
+		filePath := "resume/" + fileName.String
+		c.FileAttachment(filePath, fileName.String)
+		redirect_url := fmt.Sprintf("/recruiter/jobPostings/%s/applicants/%s", posting_id, user_id)
+		c.Redirect(http.StatusFound, redirect_url)
+	})
+
+	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id/resume/extract", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterResumeImport)
 
 	// Applicant Endpoints
 	r.GET("/applicant/home", middleware.AuthRequired, middleware.AllowedGroups(3), controllers.ApplicantHome)

@@ -1,0 +1,25 @@
+{{template  "header.html" .}}
+
+{{template "recruiter_menu.html" .}}
+<h1 class="border-bottom mb-4">Job Applicants For {{.Job_Title}}</h1>
+   
+<div class = "container content-section">
+    <table class="table">
+        <thead>
+        <tr>
+            <th scope="col">Username</th>
+            <th scope="col">Email</th>
+       </tr>
+        </thead>
+        <tbody>
+            {{range .results }}
+            <tr>
+                <th scope="row"><a href = "/recruiter/jobPostings/{{.PostingID}}/applicants/{{.UserID}}">{{.Username}}</a></th>
+                <td>{{.Email}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+
+{{template "footer.html" .}}

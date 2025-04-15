@@ -245,6 +245,55 @@ func (q *Queries) GetApplicantSkills(ctx context.Context, userID int32) ([]GetAp
 	return items, nil
 }
 
+const getJobApplicants = `-- name: GetJobApplicants :many
+SELECT DISTINCT jobposting_applicants.user_id, jobposting_applicants.posting_id, users.username, users.email, users.user_id, job_posting.job_title
+FROM jobposting_applicants
+JOIN users
+ON jobposting_applicants.user_id = users.user_id
+JOIN job_posting
+ON job_posting.posting_id = jobposting_applicants.posting_id
+WHERE jobposting_applicants.posting_id = $1
+`
+
+type GetJobApplicantsRow struct {
+	UserID    int32
+	PostingID int32
+	Username  string
+	Email     string
+	UserID_2  int32
+	JobTitle  sql.NullString
+}
+
+func (q *Queries) GetJobApplicants(ctx context.Context, postingID int32) ([]GetJobApplicantsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getJobApplicants, postingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetJobApplicantsRow
+	for rows.Next() {
+		var i GetJobApplicantsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.PostingID,
+			&i.Username,
+			&i.Email,
+			&i.UserID_2,
+			&i.JobTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getJobPosting = `-- name: GetJobPosting :one
 SELECT posting_id, user_id, job_title, job_description, posting_date FROM job_posting WHERE posting_id = $1
 `
@@ -288,6 +337,49 @@ func (q *Queries) GetJobPosting_applicants(ctx context.Context, userID int32) ([
 	for rows.Next() {
 		var i GetJobPosting_applicantsRow
 		if err := rows.Scan(&i.JobTitle, &i.PostingID, &i.CompanyName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getJobPosting_recruiters = `-- name: GetJobPosting_recruiters :many
+SELECT DISTINCT job_posting.job_title, job_posting.posting_id, job_posting.posting_date, recruiter_profile.company_name
+FROM job_posting
+JOIN recruiter_profile
+ON job_posting.user_id = recruiter_profile.user_id
+WHERE recruiter_profile.user_id = $1 AND job_posting.job_title IS NOT NULL AND job_posting.job_description IS NOT NULL
+`
+
+type GetJobPosting_recruitersRow struct {
+	JobTitle    sql.NullString
+	PostingID   int32
+	PostingDate sql.NullTime
+	CompanyName sql.NullString
+}
+
+func (q *Queries) GetJobPosting_recruiters(ctx context.Context, userID int32) ([]GetJobPosting_recruitersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getJobPosting_recruiters, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetJobPosting_recruitersRow
+	for rows.Next() {
+		var i GetJobPosting_recruitersRow
+		if err := rows.Scan(
+			&i.JobTitle,
+			&i.PostingID,
+			&i.PostingDate,
+			&i.CompanyName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

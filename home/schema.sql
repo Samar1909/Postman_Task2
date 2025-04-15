@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS applicant_skills(
     FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS jobPosting_applicants(
+CREATE TABLE IF NOT EXISTS jobposting_applicants(
     posting_id INT,
     user_id INT,
     PRIMARY KEY(posting_id, user_id),

@@ -1,0 +1,63 @@
+{{template "header.html" .}}
+
+{{template "applicant_menu.html" .}}
+
+<div class="container mt-5">
+    <div class="card shadow-lg rounded-lg p-4">
+        <h1 class="card-title fw-bold text-primary border-bottom pb-3 mb-4">{{.job_posting.JobTitle.String}}</h1>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-briefcase me-2"></i> Job Title:</strong>
+            <span class="ms-2">{{.job_posting.JobTitle.String}}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-file-text me-2"></i> Job Description:</strong>
+            <p class="ms-2">{{.job_posting.JobDescription.String}}</p>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-calendar-event me-2"></i> Posting Date:</strong>
+            <span class="ms-2">{{.posting_date}}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-building me-2"></i> Company Name:</strong>
+            <span class="ms-2">{{.recruiter_profile.CompanyName.String}}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-info-circle me-2"></i> Company Description:</strong>
+            <p class="ms-2">{{.recruiter_profile.CompanyDescription.String}}</p>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-person me-2"></i> Posted By:</strong>
+            <span class="ms-2">{{.recruiter_user.Username}}</span>
+        </div>
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-person me-2"></i> Skills required:</strong>
+            {{if .skills_req}}
+            {{range .skills_req}}
+            <span class="ms-2">{{.Name.String}} </span>
+            {{end}}
+            
+            {{else}}
+            <span class="ms-2">None</span>
+            {{end}}
+            
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-envelope me-2"></i> Contact:</strong>
+            <span class="ms-2">{{.recruiter_user.Email}}</span>
+        </div>
+
+        <div class="mt-4">
+            <a href = "/applicant/jobPostings/{{.job_posting.PostingID}}/apply/"><button class="btn btn-primary rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i> Apply Now</button></a>
+        </div>
+
+    </div>
+</div>
+
+{{template "footer.html" .}}

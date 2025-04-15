@@ -63,16 +63,54 @@ type ResponseData struct {
 }
 
 func ApplicantHome(c *gin.Context) {
+	queries := products.New(initializers.DB)
+	ctx := context.Background()
 	user, exists := c.Get("user")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"message": "Unable to get user details",
-		})
+		fmt.Println("1")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
 	}
-	req_user := user.(products.User)
+	req_user, ok := user.(products.User)
+	if !ok {
+		fmt.Println("2")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	userProfile, exists := c.Get("userProfile")
+	if !exists {
+		fmt.Println("3")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	req_userProfile, ok := userProfile.(products.ApplicantProfile)
+	if !ok {
+		fmt.Println("4")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	userSkills, err := queries.GetApplicantSkills(ctx, req_user.UserID)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	userAppliedjobs, err := queries.GetJobPosting_applicants(ctx, req_user.UserID)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
 	fmt.Println(req_user.Username)
 	c.HTML(http.StatusOK, "applicant_home.html", gin.H{
-		"username": req_user.Username,
+		"user":            req_user,
+		"userProfile":     req_userProfile,
+		"userSKills":      userSkills,
+		"userAppliedjobs": userAppliedjobs,
 	})
 }
 
@@ -338,6 +376,29 @@ func GetDataFromResume(data string, email string, first_name string, last_name s
 	}
 
 	return errorString
+}
+func ApplicantExportResume(c *gin.Context) {
+	ctx := context.Background()
+	queries := products.New(initializers.DB)
+
+	user, exists := c.Get("user")
+	if !exists {
+		fmt.Println("1")
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+	req_user := user.(products.User)
+
+	fileName, err := queries.GetApplicantResume(ctx, req_user.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch file from database",
+		})
+		return
+	}
+
+	filePath := "resume/" + fileName.String
+	c.FileAttachment(filePath, fileName.String)
+	c.Redirect(http.StatusFound, "/applicant/resume/")
 }
 
 func ApplicantUpdateProfile(c *gin.Context) {

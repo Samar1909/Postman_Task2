@@ -24,8 +24,16 @@ type ApplicantSkill struct {
 }
 
 type JobPosting struct {
-	PostingID   int32
-	CompanyName string
+	PostingID      int32
+	UserID         sql.NullInt32
+	JobTitle       sql.NullString
+	JobDescription sql.NullString
+	PostingDate    sql.NullTime
+}
+
+type JobpostingApplicant struct {
+	PostingID int32
+	UserID    int32
 }
 
 type RecruiterProfile struct {

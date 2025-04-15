@@ -1,0 +1,121 @@
+{{template  "header.html" .}}
+
+{{template "recruiter_menu.html" .}}
+<h1 class="border-bottom mb-4">New Job Posting</h1>
+<form method="post" action="">
+    <input type="hidden" name="csrf_token" value="{{ .csrf_token }}">
+    <input type="hidden" name="posting_id" value="{{ .posting_id }}">
+    <div class="mb-3">
+        <label for="first_name" class="form-label fw-semibold fs-4">Job Title</label>
+        <input type="text" class="form-control" id="job_title" name="job_title" 
+        value="{{ .job_title}}" required>
+    </div>
+    <div class="mb-3">
+        <label for="last_name" class="form-label fw-semibold fs-4">Job Description</label>
+        <input type="text" class="form-control" id="job_description" name="job_description"
+        value="{{.job_description}}" required>
+    </div>
+    {{if .skills_req}}
+    <div class="mb-3">
+        <label for="skills" class="form-label fw-semibold fs-4">Skills</label>
+        <ul class="list-group">
+            {{range .skills_req}}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ .Name.String }}
+                <a href="/recruiter/jobPosting/addSKill/{{ .SkillID }}/{{.PostingID}}" class="btn-close" aria-label="Close"></a>
+            </li>
+              
+            {{end}}
+        </ul>
+        <button type="button" class="btn btn-primary mt-2 mb-2" data-bs-toggle="modal" data-bs-target="#skillModal">
+            Add a Skill
+        </button>
+    </div>
+
+    {{else}}
+    <div class = "mb-3">
+    <button type="button" class="btn btn-outline-primary mt-2 mb-2" data-bs-toggle="modal" data-bs-target="#skillModal">
+        Add a Skill
+    </button><br><br>
+     
+    {{end}}
+
+    
+    
+    <button class="btn btn-primary" type="submit">Create</button>
+</form>
+
+<div class="modal fade" id="skillModal" tabindex="-1" aria-labelledby="skillModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h1 class="modal-title fs-5" id="skillModalLabel">Add a Skill</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form method = "post" action = "/recruiter/jobPosting/addSKill/">
+            <input type="hidden" name="posting_id" value="{{ .posting_id }}">
+        <div class="modal-body">
+            <input type="text" id = "search-input" name ="search-input" placeholder="Search Skills...." class="form-control">
+            <div id = "results"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+        </form>
+      </div>
+    </div>
+</div>
+
+<script>
+    const search_input = document.getElementById("search-input")
+    search_input.addEventListener('input', async function(){
+        try{
+            const query = search_input.value;
+            const response = await fetch(`/recruiter/jobPosting/searchSkills?q=${query}`)
+            if (!response.ok){
+                throw new Error(`Something Went Wrong :( status: ${response.status}`)
+            }
+            const data = await response.json()
+            const results = document.getElementById("results")
+            results.innerHTML = ''
+            const ul = document.createElement('ul')
+            ul.classList.add('list-group');
+            results.appendChild(ul);
+            if(data.results){
+                data.results.forEach(element => {
+                    const li = document.createElement('li');
+                    li.classList.add("list-group-item");
+                    li.textContent = `${element.Name.String}`;
+                    li.id = "search_result";
+                    li.addEventListener("mouseover", function () {
+                    this.classList.add("active");
+                    });
+
+                    li.addEventListener("mouseout", function () {
+                        this.classList.remove("active");
+                    });
+                    li.addEventListener("click", function(){
+                        search_input.value = this.textContent
+                    })
+                        ul.appendChild(li);
+                    }
+
+                    
+            )
+            }else{
+                const li = document.createElement('li');
+                li.classList.add("list-group-item");
+                li.textContent = " ";
+                ul.appendChild(li);
+            }
+            
+        }
+        catch(error){
+            console.error(error) 
+        }
+    })
+  
+</script>
+
+{{template "footer.html" .}}

@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS recruiter_profile(
 
 CREATE TABLE IF NOT EXISTS skills(
     skill_id SERIAL PRIMARY KEY,
-    name TEXT
+    name TEXT UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS applicant_profile(
@@ -39,8 +39,11 @@ CREATE TABLE IF NOT EXISTS applicant_profile(
 
 CREATE TABLE IF NOT EXISTS job_posting(
     posting_id SERIAL PRIMARY KEY,
-    company_name VARCHAR(50) NOT NULL,
-    FOREIGN KEY(company_name) REFERENCES recruiter_profile(company_name) ON DELETE CASCADE
+    user_id INT,
+    job_title VARCHAR(100),
+    job_description TEXT,
+    posting_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS skills_req(
@@ -51,12 +54,22 @@ CREATE TABLE IF NOT EXISTS skills_req(
     FOREIGN KEY(posting_id) REFERENCES job_posting(posting_id) ON DELETE CASCADE
 );
 
-CREATE TABLE applicant_skills(
+CREATE TABLE IF NOT EXISTS applicant_skills(
     skill_id INT,
     user_id INT,
     PRIMARY KEY(skill_id, user_id),
     FOREIGN KEY(skill_id) REFERENCES skills(skill_id) ON DELETE CASCADE,
     FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS jobPosting_applicants(
+    posting_id INT,
+    user_id INT,
+    PRIMARY KEY(posting_id, user_id),
+    FOREIGN KEY(posting_id) REFERENCES job_posting(posting_id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+
 
 

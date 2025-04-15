@@ -33,6 +33,37 @@ func (q *Queries) CreateApplicantProfile(ctx context.Context, userID int32) erro
 	return err
 }
 
+const createJobPosting = `-- name: CreateJobPosting :one
+INSERT INTO job_posting(user_id) VALUES($1) RETURNING posting_id, user_id, job_title, job_description, posting_date
+`
+
+func (q *Queries) CreateJobPosting(ctx context.Context, userID sql.NullInt32) (JobPosting, error) {
+	row := q.db.QueryRowContext(ctx, createJobPosting, userID)
+	var i JobPosting
+	err := row.Scan(
+		&i.PostingID,
+		&i.UserID,
+		&i.JobTitle,
+		&i.JobDescription,
+		&i.PostingDate,
+	)
+	return i, err
+}
+
+const createJobPosting_applicants = `-- name: CreateJobPosting_applicants :exec
+INSERT INTO jobposting_applicants(posting_id, user_id) VALUES($1, $2)
+`
+
+type CreateJobPosting_applicantsParams struct {
+	PostingID int32
+	UserID    int32
+}
+
+func (q *Queries) CreateJobPosting_applicants(ctx context.Context, arg CreateJobPosting_applicantsParams) error {
+	_, err := q.db.ExecContext(ctx, createJobPosting_applicants, arg.PostingID, arg.UserID)
+	return err
+}
+
 const createNewUser = `-- name: CreateNewUser :one
 INSERT INTO users (email, username, password_hash, role_id)
 VALUES ($1, $2, $3, $4) RETURNING user_id, email, username, password_hash, role_id, created_at
@@ -84,6 +115,20 @@ func (q *Queries) CreateSkill(ctx context.Context, name sql.NullString) (Skill, 
 	return i, err
 }
 
+const createSkill_Req = `-- name: CreateSkill_Req :exec
+INSERT INTO skills_req(skill_id, posting_id) VALUES($1,$2)
+`
+
+type CreateSkill_ReqParams struct {
+	SkillID   int32
+	PostingID int32
+}
+
+func (q *Queries) CreateSkill_Req(ctx context.Context, arg CreateSkill_ReqParams) error {
+	_, err := q.db.ExecContext(ctx, createSkill_Req, arg.SkillID, arg.PostingID)
+	return err
+}
+
 const deleteApplicantSkill = `-- name: DeleteApplicantSkill :exec
 DELETE FROM applicant_skills WHERE user_id = $1 AND skill_id = $2
 `
@@ -95,6 +140,30 @@ type DeleteApplicantSkillParams struct {
 
 func (q *Queries) DeleteApplicantSkill(ctx context.Context, arg DeleteApplicantSkillParams) error {
 	_, err := q.db.ExecContext(ctx, deleteApplicantSkill, arg.UserID, arg.SkillID)
+	return err
+}
+
+const deleteJobPosting = `-- name: DeleteJobPosting :exec
+DELETE FROM job_posting
+WHERE job_title IS NULL AND job_description IS NULL
+`
+
+func (q *Queries) DeleteJobPosting(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteJobPosting)
+	return err
+}
+
+const deleteRequiredSkill = `-- name: DeleteRequiredSkill :exec
+DELETE FROM skills_req WHERE posting_id = $1 AND skill_id = $2
+`
+
+type DeleteRequiredSkillParams struct {
+	PostingID int32
+	SkillID   int32
+}
+
+func (q *Queries) DeleteRequiredSkill(ctx context.Context, arg DeleteRequiredSkillParams) error {
+	_, err := q.db.ExecContext(ctx, deleteRequiredSkill, arg.PostingID, arg.SkillID)
 	return err
 }
 
@@ -115,6 +184,17 @@ func (q *Queries) GetApplicantProfile(ctx context.Context, userID int32) (Applic
 		&i.Age,
 	)
 	return i, err
+}
+
+const getApplicantResume = `-- name: GetApplicantResume :one
+SELECT resume_fileName FROM applicant_profile WHERE user_id = $1
+`
+
+func (q *Queries) GetApplicantResume(ctx context.Context, userID int32) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getApplicantResume, userID)
+	var resume_filename sql.NullString
+	err := row.Scan(&resume_filename)
+	return resume_filename, err
 }
 
 const getApplicantSkill = `-- name: GetApplicantSkill :one
@@ -165,6 +245,111 @@ func (q *Queries) GetApplicantSkills(ctx context.Context, userID int32) ([]GetAp
 	return items, nil
 }
 
+const getJobPosting = `-- name: GetJobPosting :one
+SELECT posting_id, user_id, job_title, job_description, posting_date FROM job_posting WHERE posting_id = $1
+`
+
+func (q *Queries) GetJobPosting(ctx context.Context, postingID int32) (JobPosting, error) {
+	row := q.db.QueryRowContext(ctx, getJobPosting, postingID)
+	var i JobPosting
+	err := row.Scan(
+		&i.PostingID,
+		&i.UserID,
+		&i.JobTitle,
+		&i.JobDescription,
+		&i.PostingDate,
+	)
+	return i, err
+}
+
+const getJobPosting_applicants = `-- name: GetJobPosting_applicants :many
+SELECT DISTINCT job_posting.job_title, job_posting.posting_id, recruiter_profile.company_name
+FROM job_posting
+JOIN jobposting_applicants
+ON jobposting_applicants.posting_id = job_posting.posting_id
+JOIN recruiter_profile
+ON recruiter_profile.user_id = job_posting.user_id
+WHERE jobposting_applicants.user_id = $1
+`
+
+type GetJobPosting_applicantsRow struct {
+	JobTitle    sql.NullString
+	PostingID   int32
+	CompanyName sql.NullString
+}
+
+func (q *Queries) GetJobPosting_applicants(ctx context.Context, userID int32) ([]GetJobPosting_applicantsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getJobPosting_applicants, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetJobPosting_applicantsRow
+	for rows.Next() {
+		var i GetJobPosting_applicantsRow
+		if err := rows.Scan(&i.JobTitle, &i.PostingID, &i.CompanyName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getJobPostings = `-- name: GetJobPostings :many
+SELECT DISTINCT job_posting.job_title, job_posting.user_id, job_posting.posting_date,job_posting.posting_id, recruiter_profile.company_name
+FROM job_posting
+JOIN skills_req
+ON job_posting.posting_id = skills_req.posting_id
+JOIN applicant_skills
+ON skills_req.skill_id = applicant_skills.skill_id
+JOIN recruiter_profile
+ON job_posting.user_id = recruiter_profile.user_id
+WHERE job_posting.job_title IS NOT NULL AND job_posting.job_description IS NOT NULL
+`
+
+type GetJobPostingsRow struct {
+	JobTitle    sql.NullString
+	UserID      sql.NullInt32
+	PostingDate sql.NullTime
+	PostingID   int32
+	CompanyName sql.NullString
+}
+
+func (q *Queries) GetJobPostings(ctx context.Context) ([]GetJobPostingsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getJobPostings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetJobPostingsRow
+	for rows.Next() {
+		var i GetJobPostingsRow
+		if err := rows.Scan(
+			&i.JobTitle,
+			&i.UserID,
+			&i.PostingDate,
+			&i.PostingID,
+			&i.CompanyName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRecruiterProfile = `-- name: GetRecruiterProfile :one
 SELECT user_id, company_name, company_description FROM recruiter_profile WHERE user_id = $1 LIMIT 1
 `
@@ -174,6 +359,43 @@ func (q *Queries) GetRecruiterProfile(ctx context.Context, userID int32) (Recrui
 	var i RecruiterProfile
 	err := row.Scan(&i.UserID, &i.CompanyName, &i.CompanyDescription)
 	return i, err
+}
+
+const getRequiredSkills = `-- name: GetRequiredSkills :many
+SELECT skills_req.skill_id, skills_req.posting_id, skills.name
+FROM skills_req
+JOIN skills
+ON skills_req.skill_id = skills.skill_id
+WHERE skills_req.posting_id = $1
+`
+
+type GetRequiredSkillsRow struct {
+	SkillID   int32
+	PostingID int32
+	Name      sql.NullString
+}
+
+func (q *Queries) GetRequiredSkills(ctx context.Context, postingID int32) ([]GetRequiredSkillsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRequiredSkills, postingID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRequiredSkillsRow
+	for rows.Next() {
+		var i GetRequiredSkillsRow
+		if err := rows.Scan(&i.SkillID, &i.PostingID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getSkill = `-- name: GetSkill :one
@@ -296,6 +518,29 @@ func (q *Queries) UpdateApplicantProfile(ctx context.Context, arg UpdateApplican
 		arg.UserID,
 	)
 	return err
+}
+
+const updateJobPosting = `-- name: UpdateJobPosting :one
+UPDATE job_posting SET job_title = $1, job_description = $2 WHERE posting_id = $3 RETURNING posting_id, user_id, job_title, job_description, posting_date
+`
+
+type UpdateJobPostingParams struct {
+	JobTitle       sql.NullString
+	JobDescription sql.NullString
+	PostingID      int32
+}
+
+func (q *Queries) UpdateJobPosting(ctx context.Context, arg UpdateJobPostingParams) (JobPosting, error) {
+	row := q.db.QueryRowContext(ctx, updateJobPosting, arg.JobTitle, arg.JobDescription, arg.PostingID)
+	var i JobPosting
+	err := row.Scan(
+		&i.PostingID,
+		&i.UserID,
+		&i.JobTitle,
+		&i.JobDescription,
+		&i.PostingDate,
+	)
+	return i, err
 }
 
 const updateRecruiterProfile = `-- name: UpdateRecruiterProfile :exec

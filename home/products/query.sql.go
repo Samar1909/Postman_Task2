@@ -10,6 +10,20 @@ import (
 	"database/sql"
 )
 
+const addApplicantProfile = `-- name: AddApplicantProfile :exec
+UPDATE applicant_profile SET resume_fileName = $1 WHERE user_id = $2
+`
+
+type AddApplicantProfileParams struct {
+	ResumeFilename sql.NullString
+	UserID         int32
+}
+
+func (q *Queries) AddApplicantProfile(ctx context.Context, arg AddApplicantProfileParams) error {
+	_, err := q.db.ExecContext(ctx, addApplicantProfile, arg.ResumeFilename, arg.UserID)
+	return err
+}
+
 const createApplicantProfile = `-- name: CreateApplicantProfile :exec
 INSERT INTO applicant_profile(user_id) VALUES ($1)
 `
@@ -59,8 +73,33 @@ func (q *Queries) CreateRecruiterProfile(ctx context.Context, userID int32) erro
 	return err
 }
 
+const createSkill = `-- name: CreateSkill :one
+INSERT INTO skills(name) VALUES($1) RETURNING skill_id, name
+`
+
+func (q *Queries) CreateSkill(ctx context.Context, name sql.NullString) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, createSkill, name)
+	var i Skill
+	err := row.Scan(&i.SkillID, &i.Name)
+	return i, err
+}
+
+const deleteApplicantSkill = `-- name: DeleteApplicantSkill :exec
+DELETE FROM applicant_skills WHERE user_id = $1 AND skill_id = $2
+`
+
+type DeleteApplicantSkillParams struct {
+	UserID  int32
+	SkillID int32
+}
+
+func (q *Queries) DeleteApplicantSkill(ctx context.Context, arg DeleteApplicantSkillParams) error {
+	_, err := q.db.ExecContext(ctx, deleteApplicantSkill, arg.UserID, arg.SkillID)
+	return err
+}
+
 const getApplicantProfile = `-- name: GetApplicantProfile :one
-SELECT user_id, first_name, last_name, skill_id, resume_name, resume_data FROM applicant_profile WHERE user_id = $1 LIMIT 1
+SELECT user_id, first_name, last_name, resume_filename, school, college, age FROM applicant_profile WHERE user_id = $1 LIMIT 1
 `
 
 func (q *Queries) GetApplicantProfile(ctx context.Context, userID int32) (ApplicantProfile, error) {
@@ -70,11 +109,60 @@ func (q *Queries) GetApplicantProfile(ctx context.Context, userID int32) (Applic
 		&i.UserID,
 		&i.FirstName,
 		&i.LastName,
-		&i.SkillID,
-		&i.ResumeName,
-		&i.ResumeData,
+		&i.ResumeFilename,
+		&i.School,
+		&i.College,
+		&i.Age,
 	)
 	return i, err
+}
+
+const getApplicantSkill = `-- name: GetApplicantSkill :one
+SELECT skill_id, user_id FROM applicant_skills WHERE skill_id = $1
+`
+
+func (q *Queries) GetApplicantSkill(ctx context.Context, skillID int32) (ApplicantSkill, error) {
+	row := q.db.QueryRowContext(ctx, getApplicantSkill, skillID)
+	var i ApplicantSkill
+	err := row.Scan(&i.SkillID, &i.UserID)
+	return i, err
+}
+
+const getApplicantSkills = `-- name: GetApplicantSkills :many
+SELECT applicant_skills.skill_id, applicant_skills.user_id, skills.name
+FROM applicant_skills
+JOIN skills
+ON applicant_skills.skill_id = skills.skill_id
+WHERE applicant_skills.user_id = $1
+`
+
+type GetApplicantSkillsRow struct {
+	SkillID int32
+	UserID  int32
+	Name    sql.NullString
+}
+
+func (q *Queries) GetApplicantSkills(ctx context.Context, userID int32) ([]GetApplicantSkillsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getApplicantSkills, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetApplicantSkillsRow
+	for rows.Next() {
+		var i GetApplicantSkillsRow
+		if err := rows.Scan(&i.SkillID, &i.UserID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getRecruiterProfile = `-- name: GetRecruiterProfile :one
@@ -85,6 +173,17 @@ func (q *Queries) GetRecruiterProfile(ctx context.Context, userID int32) (Recrui
 	row := q.db.QueryRowContext(ctx, getRecruiterProfile, userID)
 	var i RecruiterProfile
 	err := row.Scan(&i.UserID, &i.CompanyName, &i.CompanyDescription)
+	return i, err
+}
+
+const getSkill = `-- name: GetSkill :one
+SELECT skill_id, name FROM skills WHERE name = $1
+`
+
+func (q *Queries) GetSkill(ctx context.Context, name sql.NullString) (Skill, error) {
+	row := q.db.QueryRowContext(ctx, getSkill, name)
+	var i Skill
+	err := row.Scan(&i.SkillID, &i.Name)
 	return i, err
 }
 
@@ -122,6 +221,81 @@ func (q *Queries) GetUserByID(ctx context.Context, userID int32) (User, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const newApplicantSkill = `-- name: NewApplicantSkill :exec
+INSERT INTO applicant_skills(user_id, skill_id) VALUES($1, $2)
+`
+
+type NewApplicantSkillParams struct {
+	UserID  int32
+	SkillID int32
+}
+
+func (q *Queries) NewApplicantSkill(ctx context.Context, arg NewApplicantSkillParams) error {
+	_, err := q.db.ExecContext(ctx, newApplicantSkill, arg.UserID, arg.SkillID)
+	return err
+}
+
+const searchSkillsFunc = `-- name: SearchSkillsFunc :many
+SELECT name, similarity(name, $1) 
+AS score
+FROM skills
+WHERE name % $1
+ORDER BY score DESC
+`
+
+type SearchSkillsFuncRow struct {
+	Name  sql.NullString
+	Score interface{}
+}
+
+func (q *Queries) SearchSkillsFunc(ctx context.Context, similarity interface{}) ([]SearchSkillsFuncRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchSkillsFunc, similarity)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchSkillsFuncRow
+	for rows.Next() {
+		var i SearchSkillsFuncRow
+		if err := rows.Scan(&i.Name, &i.Score); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateApplicantProfile = `-- name: UpdateApplicantProfile :exec
+UPDATE applicant_profile SET first_name = $1, last_name = $2, school = $3, college = $4, age = $5 WHERE user_id = $6
+`
+
+type UpdateApplicantProfileParams struct {
+	FirstName sql.NullString
+	LastName  sql.NullString
+	School    sql.NullString
+	College   sql.NullString
+	Age       sql.NullInt32
+	UserID    int32
+}
+
+func (q *Queries) UpdateApplicantProfile(ctx context.Context, arg UpdateApplicantProfileParams) error {
+	_, err := q.db.ExecContext(ctx, updateApplicantProfile,
+		arg.FirstName,
+		arg.LastName,
+		arg.School,
+		arg.College,
+		arg.Age,
+		arg.UserID,
+	)
+	return err
 }
 
 const updateRecruiterProfile = `-- name: UpdateRecruiterProfile :exec

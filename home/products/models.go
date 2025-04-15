@@ -9,12 +9,18 @@ import (
 )
 
 type ApplicantProfile struct {
-	UserID     int32
-	FirstName  sql.NullString
-	LastName   sql.NullString
-	SkillID    sql.NullInt32
-	ResumeName sql.NullString
-	ResumeData []byte
+	UserID         int32
+	FirstName      sql.NullString
+	LastName       sql.NullString
+	ResumeFilename sql.NullString
+	School         sql.NullString
+	College        sql.NullString
+	Age            sql.NullInt32
+}
+
+type ApplicantSkill struct {
+	SkillID int32
+	UserID  int32
 }
 
 type JobPosting struct {

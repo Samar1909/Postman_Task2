@@ -1,37 +1,6 @@
 {{template  "header.html" .}}
 
 {{template "applicant_menu.html" .}}
-<div class="main-container">
-    <div class="container-fluid">
-        <div class="row justify-content-center">
-            <!-- Main Content Area -->
-            <div class="col-lg-7 col-md-6 p-4">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <div class="row align-items-center">
-                            <!-- User Image -->
-                            <div class="col-md-3 text-center">
-                                <img src="{{user.profile.image.url}}" 
-                                     alt="Student Profile" 
-                                     class="img-fluid rounded-circle mb-3"
-                                     style="max-width: 150px; width: 100%; height: auto;">
-                            </div>
-                            <!-- User Details -->
-                            <div class="col-md-9">
-                                <h3 class="mb-3">Welcome {{.username}}</h3>
-                                <div class="row">
-                                    <div class="col-12">
-                                        <p class="mb-2"><strong>Name: </strong>{{user.first_name}} {{user.last_name}}</p>
-                                        <p class="mb-2 text-break"><strong>Email: </strong><span style="font-size: 0.95rem;">{{user.email}}</span></p>
-                                        <p class="mb-2"><strong>Hostel: </strong>{{user.profile.hostel}}</p>
-                                        <p class="mb-2"><strong>Room: </strong>{{user.profile.room}}</p>
-                                        <a class="btn btn-primary mt-2" href="{%url 'stu_profileUpdate'%}">Update Profile</a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<h1 class = "border-bottom mb-4">Welcome {{.username}}</h1>
 
 {{template "footer.html" .}}

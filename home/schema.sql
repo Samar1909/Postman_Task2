@@ -29,9 +29,10 @@ CREATE TABLE IF NOT EXISTS applicant_profile(
     user_id INT PRIMARY KEY,    
     first_name VARCHAR(40),
     last_name VARCHAR(40),
-    skill_id INT,
-    resume_name TEXT,
-    resume_data BYTEA,
+    resume_fileName TEXT UNIQUE,
+    school VARCHAR(60),
+    college TEXT,
+    age INT,
     FOREIGN KEY(skill_id) REFERENCES skills(skill_id) ON DELETE SET NULL,
     FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
@@ -48,6 +49,14 @@ CREATE TABLE IF NOT EXISTS skills_req(
     PRIMARY KEY(skill_id, posting_id),
     FOREIGN KEY(skill_id) REFERENCES skills(skill_id) ON DELETE CASCADE,
     FOREIGN KEY(posting_id) REFERENCES job_posting(posting_id) ON DELETE CASCADE
+);
+
+CREATE TABLE applicant_skills(
+    skill_id INT,
+    user_id INT,
+    PRIMARY KEY(skill_id, user_id),
+    FOREIGN KEY(skill_id) REFERENCES skills(skill_id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 

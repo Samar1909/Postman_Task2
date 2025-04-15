@@ -75,9 +75,10 @@ func AuthRequired(c *gin.Context) {
 		c.Set("userProfile", profile)
 
 	case 3:
+		fmt.Println(reqUser.UserID)
 		profile, err := queries.GetApplicantProfile(ctx, reqUser.UserID)
 		if err != nil {
-			fmt.Println("6")
+			fmt.Println(err.Error())
 
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return

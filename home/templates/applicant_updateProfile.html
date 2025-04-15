@@ -1,0 +1,150 @@
+{{template  "header.html" .}}
+
+{{template "applicant_menu.html" .}}
+<h1 class="border-bottom mb-4">Update Profile</h1>
+<form method="post" action="">
+    <input type="hidden" name="csrf_token" value="{{ .csrf_token }}">
+    <div class="mb-3">
+        <label for="email" class="form-label fw-semibold fs-4">Email</label>
+        <input type="text" class="form-control" id="email" name="email" value="{{ .email }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="username" class="form-label fw-semibold fs-4">Username</label>
+        <input type="text" class="form-control" id="username" name="username" value="{{ .username }}" required>
+    </div>
+    <div class="mb-3">
+        <label for="first_name" class="form-label fw-semibold fs-4">First Name</label>
+        <input type="text" class="form-control" id="first_name" name="first_name" 
+        value="{{.first_name}}" required>
+    </div>
+    <div class="mb-3">
+        <label for="last_name" class="form-label fw-semibold fs-4">Last Name</label>
+        <input type="text" class="form-control" id="last_name" name="last_name"
+        value="{{.last_name}}" required>
+    </div>
+    <div class="mb-3">
+        <label for="school" class="form-label fw-semibold fs-4">School</label>
+        <input type="text" class="form-control" id="school" name="school"
+        value="{{.school}}" required>
+    </div>
+    <div class="mb-3">
+        <label for="college" class="form-label fw-semibold fs-4">College</label>
+        <input type="text" class="form-control" id="college" name="college"
+        value="{{.college}}" required>
+    </div>
+    <div class="mb-3">
+        <label for="age" class="form-label fw-semibold fs-4">Age</label>
+        <input type="number" class="form-control" id="age" name="age"
+        value="{{.age}}" required>
+    </div>
+    {{if .UserSkills}}
+    <div class="mb-3">
+        <label for="skills" class="form-label fw-semibold fs-4">Skills</label>
+        <ul class="list-group">
+            {{range .UserSkills}}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                {{ .Name.String }}
+                <a href="/applicant/updateProfile/deleteSkill/{{ .SkillID }}" class="btn-close" aria-label="Close"></a>
+              </li>
+              
+            {{end}}
+        </ul>
+        <button type="button" class="btn btn-primary mt-2 mb-2" data-bs-toggle="modal" data-bs-target="#skillModal">
+            Add a Skill
+        </button>
+    </div>
+
+    {{else}}
+    <div class = "mb-3">
+    <button type="button" class="btn btn-primary mt-2 mb-2" data-bs-toggle="modal" data-bs-target="#skillModal">
+        Add a Skill
+    </button><br><br>
+     
+    {{end}}
+
+    
+    
+    <button class="btn btn-primary" type="submit">Update Profile</button>
+</form>
+
+<div class="modal fade" id="skillModal" tabindex="-1" aria-labelledby="skillModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h1 class="modal-title fs-5" id="skillModalLabel">Add a Skill</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form method = "post" action = "/applicant/updateProfile/addSkill/">
+        <div class="modal-body">
+            <input type="text" id = "search-input" name ="search-input" placeholder="Search Skills...." class="form-control">
+            <div id = "results"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Add</button>
+        </div>
+        </form>
+      </div>
+    </div>
+</div>
+
+<script>
+    const search_input = document.getElementById("search-input")
+    search_input.addEventListener('input', async function(){
+        try{
+            const query = search_input.value;
+            const response = await fetch(`/applicant/updateProfile/searchSkills?q=${query}`)
+            if (!response.ok){
+                throw new Error(`Something Went Wrong :( status: ${response.status}`)
+            }
+            const data = await response.json()
+            const results = document.getElementById("results")
+            results.innerHTML = ''
+            const ul = document.createElement('ul')
+            ul.classList.add('list-group');
+            results.appendChild(ul);
+            if(data.results){
+                data.results.forEach(element => {
+                    const li = document.createElement('li');
+                    li.classList.add("list-group-item");
+                    li.textContent = `${element.Name.String}`;
+                    li.id = "search_result";
+                    li.addEventListener("mouseover", function () {
+                    this.classList.add("active");
+                    });
+
+                    li.addEventListener("mouseout", function () {
+                        this.classList.remove("active");
+                    });
+                    li.addEventListener("click", function(){
+                        search_input.value = this.textContent
+                    })
+                        ul.appendChild(li);
+                    }
+
+                    
+            )
+            }else{
+                const li = document.createElement('li');
+                li.classList.add("list-group-item");
+                li.textContent = " ";
+                ul.appendChild(li);
+            }
+            
+        }
+        catch(error){
+            console.error(error) 
+        }
+    })
+
+function addSkill(){
+
+}
+
+    
+</script>
+  
+                
+
+
+{{template "footer.html" .}}

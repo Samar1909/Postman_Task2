@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.user.Username}}'s Profile</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container mt-5">
+        <h1 class="border-bottom mb-4">{{.user.Username}}</h1>
+    
+        <div class="row row-cols-1 row-cols-md-7 g-4">
+            <div class="col">
+                <div class="card shadow-lg rounded-lg p-4 mb-4">
+                    <div class="row justify-content-between align-items-center mb-2">
+                        <div class="col-md-auto">
+                            <h2 class="card-title fw-bold text-primary pb-1"><i class="bi bi-person-badge me-2"></i> User Profile</h2>
+                        </div>
+                    </div>
+                    <hr class="mb-3">
+    
+                    <div class="mb-3">
+                        <strong class="text-secondary"><i class="bi bi-person-circle me-2"></i> Username:</strong>
+                        <span class="ms-2">{{.user.Username}}</span>
+                    </div>
+    
+                    <div class="mb-3">
+                        <strong class="text-secondary"><i class="bi bi-envelope me-2"></i> Email:</strong>
+                        <p class="ms-2">{{.user.Email}}</p>
+                    </div>
+    
+                    <div class="mb-3">
+                        <strong class="text-secondary"><i class="bi bi-person-fill me-2"></i> Company Name:</strong>
+                        <span class="ms-2">{{.userProfile.CompanyName.String}}</span>
+                    </div>
+    
+                    <div class="mb-3">
+                        <strong class="text-secondary"><i class="bi bi-person-fill me-2"></i> Company Description:</strong>
+                        <span class="ms-2">{{.userProfile.CompanyDescription.String}}</span>
+                    </div>
+    
+                    {{if .userProfile.Approved}}
+                    <div class="mb-3">
+                        <p class = "text-info fs-5">This user is already approved</p>
+                    </div>
+                    
+                    {{else if .userProfile.DeclinedCompletely}}
+                    <p>DeclinedCompletely: {{.userProfile.DeclinedCompletely}}</p>
+                    <div class="mt-4">
+                        <p class="text-info fs-5">You declined this user</p>
+                        <a href = "/super_admin/{{.user.UserID}}/approve"><button class="btn btn-success rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i>Approve</button></a>
+                    </div>
+                    {{else}}
+                    <div class="mt-4">
+                        <a href = "/super_admin/{{.user.UserID}}/approve"><button class="btn btn-success rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i>Approve</button></a>
+                        <a href = "/super_admin/{{.user.UserID}}/decline"><button class="btn btn-danger rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i>Decline</button></a>
+                    </div>
+                    {{end}}
+            
+            </div>
+        </div>
+    </div>
+    <a href="/logout/">
+        <button type="button" class="btn btn-primary" aria-expanded="false">Log Out</button>
+    </a>
+       <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

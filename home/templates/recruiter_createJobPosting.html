@@ -22,7 +22,7 @@
             {{range .skills_req}}
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 {{ .Name.String }}
-                <a href="/recruiter/jobPosting/addSKill/{{ .SkillID }}/{{.PostingID}}" class="btn-close" aria-label="Close"></a>
+                <a href="/recruiter/jobPosting/deleteSkill/{{ .SkillID }}/{{.PostingID}}" class="btn-close" aria-label="Close"></a>
             </li>
               
             {{end}}
@@ -52,8 +52,10 @@
           <h1 class="modal-title fs-5" id="skillModalLabel">Add a Skill</h1>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
-        <form method = "post" action = "/recruiter/jobPosting/addSKill/">
+        <form method = "post" action = "/recruiter/jobPosting/addSkill/">
             <input type="hidden" name="posting_id" value="{{ .posting_id }}">
+            <input type="hidden" name="job_title" value="{{ .job_title }}">
+    <input type="hidden" name="job_description" value="{{ .job_description }}">
         <div class="modal-body">
             <input type="text" id = "search-input" name ="search-input" placeholder="Search Skills...." class="form-control">
             <div id = "results"></div>

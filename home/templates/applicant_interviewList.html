@@ -1,0 +1,31 @@
+{{template "header.html" .}}
+
+{{template "applicant_menu.html" .}}
+<h1 class="border-bottom mb-4">My Interviews</h1>
+   
+<div class = "container content-section">
+    {{if .results}}
+    <table class="table">
+        <thead>
+        <tr>
+            <th scope="col">Job Title</th>
+            <th scope="col">Company Name</th>
+       </tr>
+        </thead>
+        <tbody>
+            
+            {{range .results }}
+            <tr>
+                <th scope="row"><a href = "/applicant/interview/{{.PostingID}}/{{.UserID}}">{{.JobTitle.String}}</a></th>
+                <td>{{.CompanyName.String}}</td>
+            </tr>
+            {{end}}
+            
+            
+        </tbody>
+    </table>
+    {{else}}
+    <h2 class = "badge text-bg-primary text-wrap fs-5">No Interviews yet</h2>
+    {{end}}
+</div>
+{{template "footer.html" .}}

@@ -1,0 +1,100 @@
+{{template "header.html" .}}
+
+{{template "applicant_menu.html" .}}
+<div class="container mt-5">
+    <div class="card shadow-lg rounded-lg p-4">
+        <h1 class="card-title fw-bold text-primary border-bottom pb-3 mb-4">{{.current_interview.JobTitle.String}} Interview Request</h1>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-briefcase me-2"></i> Job Title:</strong>
+            <span class="ms-2">{{.current_interview.JobTitle.String}}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-file-text me-2"></i> Job Description:</strong>
+            <p class="ms-2">{{.current_interview.JobDescription.String}}</p>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-calendar-event me-2"></i> Company Name:</strong>
+            <span class="ms-2">{{.current_interview.CompanyName.String}}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-building me-2"></i> Company Description:</strong>
+            <span class="ms-2">{{.current_interview.CompanyDescription.String}}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-person me-2"></i> Posted By:</strong>
+            <span class="ms-2">{{.current_interview.Username}}</span>
+        </div>
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-person me-2"></i> Skills required:</strong>
+            {{if .skills_req}}
+            {{range .skills_req}}
+            <span class="ms-2">{{.Name.String}} </span>
+            {{end}}
+            
+            {{else}}
+            <span class="ms-2">None</span>
+            {{end}}
+            
+        </div>
+
+        <div class="mb-3">
+          <strong class="text-secondary"><i class="bi bi-envelope me-2"></i> Date:</strong>
+          <span class="ms-2">{{.interview_date}}</span>
+        </div>
+        <div class="mb-3">
+          <strong class="text-secondary"><i class="bi bi-envelope me-2"></i> Day:</strong>
+          <span class="ms-2">{{.interview_day}}</span>
+        </div>
+        <div class="mb-3">
+          <strong class="text-secondary"><i class="bi bi-envelope me-2"></i> Time:</strong>
+          <span class="ms-2">{{.interview_time}}</span>
+        </div>
+
+        <div class="mb-3">
+            <strong class="text-secondary"><i class="bi bi-envelope me-2"></i> Contact:</strong>
+            <span class="ms-2">{{.current_interview.Email}}</span>
+        </div>
+        {{if .current_interview.AnotherdateReq}}
+        <div class="mt-4">
+          <p class = "text-info fs-5">You requested to reschedule the interview to </p>
+        </div>  
+        {{else if .current_interview.DeclinedComplete}}
+        <div class="mt-4">
+          <a href = "#"><button class="btn btn-success rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i>Accept</button></a>
+          <button type="button" data-bs-toggle="modal" data-bs-target="#declineModal" class="btn btn-danger rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i>Decline</button>
+        </div>
+        {{else}}
+        <div class="mt-4">
+            <a href = "#"><button class="btn btn-success rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i>Accept</button></a>
+            <button type="button" data-bs-toggle="modal" data-bs-target="#declineModal" class="btn btn-danger rounded-pill px-4 py-2"><i class="bi bi-send me-2"></i>Decline</button>
+        </div>
+        {{end}}
+
+    </div>
+
+       
+      <!-- Decline Modal -->
+      <div class="modal fade" id="declineModal" tabindex="-1" aria-labelledby="declineModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h1 class="modal-title fs-5" id="declineModalLabel">Are you sure you want to decline?</h1>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-footer">
+              
+              <button type="button" class="btn btn-primary">Decline</button>
+              <a href = "/applicant/interview/{{.current_interview.PostingID}}/{{.current_interview.UserID}}/decline/anotherDate"><button type="button" class="btn btn-primary">Decline and request another date</button></a>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+</div>
+{{template "footer.html" .}}

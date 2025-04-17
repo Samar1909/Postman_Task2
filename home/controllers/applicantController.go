@@ -166,7 +166,10 @@ func ApplicantAddSkill(c *gin.Context) {
 		})
 
 	} else {
-		_, err := queries.GetApplicantSkill(ctx, skill_obj.SkillID)
+		_, err := queries.GetApplicantSkill(ctx, products.GetApplicantSkillParams{
+			UserID:  req_user.UserID,
+			SkillID: skill_obj.SkillID,
+		})
 		if err != nil {
 			queries.NewApplicantSkill(ctx, products.NewApplicantSkillParams{
 				UserID:  req_user.UserID,
@@ -567,4 +570,122 @@ func ApplicantUpdateProfile(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/applicant/home")
 		return
 	}
+}
+
+func ApplicantRequestAnotherDate(c *gin.Context) {
+	ctx := context.Background()
+	queries := products.New(initializers.DB)
+
+	// CSRF Verification
+	csrf_token, err := c.Cookie("CSRF_Token")
+
+	if err != nil {
+		fmt.Println("3")
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+	formToken := c.PostForm("csrf_token")
+	fmt.Println(csrf_token)
+	fmt.Println(formToken)
+	if csrf_token != formToken {
+		fmt.Println("4")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "CSRF_Token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+
+	user_id := c.Param("user_id")
+	user_idInt, err := strconv.Atoi(user_id)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	posting_id := c.Param("posting_id")
+	posting_idInt, err := strconv.Atoi(posting_id)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	current_interview, err := queries.GetInterview(ctx, products.GetInterviewParams{
+		UserID:    int32(user_idInt),
+		PostingID: int32(posting_idInt),
+	})
+
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	timeStr := c.PostForm("interview_time")
+	dateStr := c.PostForm("interview_date")
+
+	interview_time, err := time.Parse("15:04", timeStr)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.HTML(http.StatusOK, "applicant_interviewAnotherDate.html", gin.H{
+			"csrf_token":  formToken,
+			"title":       "Rescheduling Interview",
+			"message":     "Invalid date or time",
+			"messageType": "danger",
+		})
+		return
+	}
+	interview_date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.HTML(http.StatusOK, "applicant_interviewAnotherDate.html", gin.H{
+			"csrf_token":  formToken,
+			"title":       "Rescheduling Interview",
+			"message":     "Invalid date or time",
+			"messageType": "danger",
+		})
+		return
+	}
+	interview_dateTime := time.Date(
+		interview_date.Year(),
+		interview_date.Month(),
+		interview_date.Day(),
+		interview_time.Hour(),
+		interview_time.Minute(),
+		current_interview.InterviewDatetime.Time.Second(),
+		current_interview.InterviewDatetime.Time.Nanosecond(),
+		time.Local,
+	)
+
+	//The entered date and time should not be before the current time
+	if interview_dateTime.Before(time.Now()) {
+		c.HTML(http.StatusOK, "applicant_interviewAnotherDate.html", gin.H{
+			"csrf_token":  formToken,
+			"title":       "Rescheduling Interview",
+			"message":     "The entered date and time should not be before the current time",
+			"messageType": "danger",
+		})
+		return
+	}
+
+	if err = queries.UpdateInterviewAnotherDateReq(ctx, products.UpdateInterviewAnotherDateReqParams{
+		PostingID:       int32(posting_idInt),
+		UserID:          int32(user_idInt),
+		AnotherDatetime: sql.NullTime{Valid: true, Time: interview_dateTime},
+	}); err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	redirect_url := fmt.Sprintf("/applicant/interview/%s/%s", posting_id, user_id)
+	c.Redirect(http.StatusFound, redirect_url)
 }

@@ -24,6 +24,50 @@ func (q *Queries) AddApplicantProfile(ctx context.Context, arg AddApplicantProfi
 	return err
 }
 
+const approveRecruiter = `-- name: ApproveRecruiter :exec
+UPDATE recruiter_profile
+SET approved = TRUE
+WHERE user_id = $1
+`
+
+func (q *Queries) ApproveRecruiter(ctx context.Context, userID int32) error {
+	_, err := q.db.ExecContext(ctx, approveRecruiter, userID)
+	return err
+}
+
+const checkJobPosting_applicant = `-- name: CheckJobPosting_applicant :one
+SELECT EXISTS (
+    SELECT 1 FROM jobposting_applicants
+    WHERE posting_id = $1 AND user_id = $2
+) AS exists
+`
+
+type CheckJobPosting_applicantParams struct {
+	PostingID int32
+	UserID    int32
+}
+
+func (q *Queries) CheckJobPosting_applicant(ctx context.Context, arg CheckJobPosting_applicantParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, checkJobPosting_applicant, arg.PostingID, arg.UserID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const checkUserByEmail = `-- name: CheckUserByEmail :one
+SELECT EXISTS (
+    SELECT 1 FROM users
+    WHERE email = $1
+) AS exists
+`
+
+func (q *Queries) CheckUserByEmail(ctx context.Context, email string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, checkUserByEmail, email)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createApplicantProfile = `-- name: CreateApplicantProfile :exec
 INSERT INTO applicant_profile(user_id) VALUES ($1)
 `
@@ -31,6 +75,31 @@ INSERT INTO applicant_profile(user_id) VALUES ($1)
 func (q *Queries) CreateApplicantProfile(ctx context.Context, userID int32) error {
 	_, err := q.db.ExecContext(ctx, createApplicantProfile, userID)
 	return err
+}
+
+const createInterview = `-- name: CreateInterview :one
+INSERT INTO interview(posting_id, user_id, interview_dateTime) VALUES($1, $2, $3) RETURNING posting_id, user_id, interview_datetime, accepted, declined_complete, anotherdate_req, another_datetime
+`
+
+type CreateInterviewParams struct {
+	PostingID         int32
+	UserID            int32
+	InterviewDatetime sql.NullTime
+}
+
+func (q *Queries) CreateInterview(ctx context.Context, arg CreateInterviewParams) (Interview, error) {
+	row := q.db.QueryRowContext(ctx, createInterview, arg.PostingID, arg.UserID, arg.InterviewDatetime)
+	var i Interview
+	err := row.Scan(
+		&i.PostingID,
+		&i.UserID,
+		&i.InterviewDatetime,
+		&i.Accepted,
+		&i.DeclinedComplete,
+		&i.AnotherdateReq,
+		&i.AnotherDatetime,
+	)
+	return i, err
 }
 
 const createJobPosting = `-- name: CreateJobPosting :one
@@ -129,6 +198,17 @@ func (q *Queries) CreateSkill_Req(ctx context.Context, arg CreateSkill_ReqParams
 	return err
 }
 
+const declineRecruiter = `-- name: DeclineRecruiter :exec
+UPDATE recruiter_profile
+SET declined_completely = TRUE
+WHERE user_id = $1
+`
+
+func (q *Queries) DeclineRecruiter(ctx context.Context, userID int32) error {
+	_, err := q.db.ExecContext(ctx, declineRecruiter, userID)
+	return err
+}
+
 const deleteApplicantSkill = `-- name: DeleteApplicantSkill :exec
 DELETE FROM applicant_skills WHERE user_id = $1 AND skill_id = $2
 `
@@ -198,11 +278,16 @@ func (q *Queries) GetApplicantResume(ctx context.Context, userID int32) (sql.Nul
 }
 
 const getApplicantSkill = `-- name: GetApplicantSkill :one
-SELECT skill_id, user_id FROM applicant_skills WHERE skill_id = $1
+SELECT skill_id, user_id FROM applicant_skills WHERE skill_id = $1 AND user_id = $2
 `
 
-func (q *Queries) GetApplicantSkill(ctx context.Context, skillID int32) (ApplicantSkill, error) {
-	row := q.db.QueryRowContext(ctx, getApplicantSkill, skillID)
+type GetApplicantSkillParams struct {
+	SkillID int32
+	UserID  int32
+}
+
+func (q *Queries) GetApplicantSkill(ctx context.Context, arg GetApplicantSkillParams) (ApplicantSkill, error) {
+	row := q.db.QueryRowContext(ctx, getApplicantSkill, arg.SkillID, arg.UserID)
 	var i ApplicantSkill
 	err := row.Scan(&i.SkillID, &i.UserID)
 	return i, err
@@ -232,6 +317,131 @@ func (q *Queries) GetApplicantSkills(ctx context.Context, userID int32) ([]GetAp
 	for rows.Next() {
 		var i GetApplicantSkillsRow
 		if err := rows.Scan(&i.SkillID, &i.UserID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getInterview = `-- name: GetInterview :one
+SELECT posting_id, user_id, interview_datetime, accepted, declined_complete, anotherdate_req, another_datetime 
+FROM interview
+WHERE user_id = $1 AND posting_id = $2
+`
+
+type GetInterviewParams struct {
+	UserID    int32
+	PostingID int32
+}
+
+func (q *Queries) GetInterview(ctx context.Context, arg GetInterviewParams) (Interview, error) {
+	row := q.db.QueryRowContext(ctx, getInterview, arg.UserID, arg.PostingID)
+	var i Interview
+	err := row.Scan(
+		&i.PostingID,
+		&i.UserID,
+		&i.InterviewDatetime,
+		&i.Accepted,
+		&i.DeclinedComplete,
+		&i.AnotherdateReq,
+		&i.AnotherDatetime,
+	)
+	return i, err
+}
+
+const getInterviewDetails = `-- name: GetInterviewDetails :one
+SELECT DISTINCT interview.user_id, interview.posting_id, interview.interview_dateTime, interview.accepted, interview.anotherdate_req,interview.declined_complete,job_posting.job_title, job_posting.job_description, recruiter_profile.company_name, recruiter_profile.company_description, users.username, users.email 
+FROM interview
+JOIN job_posting
+ON job_posting.posting_id = interview.posting_id
+JOIN recruiter_profile
+ON job_posting.user_id = recruiter_profile.user_id
+JOIN users
+ON users.user_id = recruiter_profile.user_id
+WHERE interview.user_id = $1 and interview.posting_id = $2
+`
+
+type GetInterviewDetailsParams struct {
+	UserID    int32
+	PostingID int32
+}
+
+type GetInterviewDetailsRow struct {
+	UserID             int32
+	PostingID          int32
+	InterviewDatetime  sql.NullTime
+	Accepted           bool
+	AnotherdateReq     bool
+	DeclinedComplete   bool
+	JobTitle           sql.NullString
+	JobDescription     sql.NullString
+	CompanyName        sql.NullString
+	CompanyDescription sql.NullString
+	Username           string
+	Email              string
+}
+
+func (q *Queries) GetInterviewDetails(ctx context.Context, arg GetInterviewDetailsParams) (GetInterviewDetailsRow, error) {
+	row := q.db.QueryRowContext(ctx, getInterviewDetails, arg.UserID, arg.PostingID)
+	var i GetInterviewDetailsRow
+	err := row.Scan(
+		&i.UserID,
+		&i.PostingID,
+		&i.InterviewDatetime,
+		&i.Accepted,
+		&i.AnotherdateReq,
+		&i.DeclinedComplete,
+		&i.JobTitle,
+		&i.JobDescription,
+		&i.CompanyName,
+		&i.CompanyDescription,
+		&i.Username,
+		&i.Email,
+	)
+	return i, err
+}
+
+const getInterviews = `-- name: GetInterviews :many
+SELECT DISTINCT job_posting.posting_id, job_posting.job_title, recruiter_profile.company_name, interview.accepted, interview.user_id
+FROM job_posting
+JOIN interview
+ON interview.posting_id = job_posting.posting_id
+JOIN recruiter_profile
+ON recruiter_profile.user_id = job_posting.user_id
+WHERE interview.user_id = $1
+`
+
+type GetInterviewsRow struct {
+	PostingID   int32
+	JobTitle    sql.NullString
+	CompanyName sql.NullString
+	Accepted    bool
+	UserID      int32
+}
+
+func (q *Queries) GetInterviews(ctx context.Context, userID int32) ([]GetInterviewsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getInterviews, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetInterviewsRow
+	for rows.Next() {
+		var i GetInterviewsRow
+		if err := rows.Scan(
+			&i.PostingID,
+			&i.JobTitle,
+			&i.CompanyName,
+			&i.Accepted,
+			&i.UserID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -443,13 +653,19 @@ func (q *Queries) GetJobPostings(ctx context.Context) ([]GetJobPostingsRow, erro
 }
 
 const getRecruiterProfile = `-- name: GetRecruiterProfile :one
-SELECT user_id, company_name, company_description FROM recruiter_profile WHERE user_id = $1 LIMIT 1
+SELECT user_id, company_name, company_description, approved, declined_completely FROM recruiter_profile WHERE user_id = $1 LIMIT 1
 `
 
 func (q *Queries) GetRecruiterProfile(ctx context.Context, userID int32) (RecruiterProfile, error) {
 	row := q.db.QueryRowContext(ctx, getRecruiterProfile, userID)
 	var i RecruiterProfile
-	err := row.Scan(&i.UserID, &i.CompanyName, &i.CompanyDescription)
+	err := row.Scan(
+		&i.UserID,
+		&i.CompanyName,
+		&i.CompanyDescription,
+		&i.Approved,
+		&i.DeclinedCompletely,
+	)
 	return i, err
 }
 
@@ -490,6 +706,49 @@ func (q *Queries) GetRequiredSkills(ctx context.Context, postingID int32) ([]Get
 	return items, nil
 }
 
+const getRestrictedUsers = `-- name: GetRestrictedUsers :many
+SELECT DISTINCT users.user_id, users.username, users.email, recruiter_profile.company_name
+FROM users
+JOIN recruiter_profile
+ON users.user_id = recruiter_profile.user_id
+WHERE users.role_id = 2 AND recruiter_profile.approved = FALSE
+`
+
+type GetRestrictedUsersRow struct {
+	UserID      int32
+	Username    string
+	Email       string
+	CompanyName sql.NullString
+}
+
+func (q *Queries) GetRestrictedUsers(ctx context.Context) ([]GetRestrictedUsersRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRestrictedUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRestrictedUsersRow
+	for rows.Next() {
+		var i GetRestrictedUsersRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Username,
+			&i.Email,
+			&i.CompanyName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getSkill = `-- name: GetSkill :one
 SELECT skill_id, name FROM skills WHERE name = $1
 `
@@ -498,6 +757,22 @@ func (q *Queries) GetSkill(ctx context.Context, name sql.NullString) (Skill, err
 	row := q.db.QueryRowContext(ctx, getSkill, name)
 	var i Skill
 	err := row.Scan(&i.SkillID, &i.Name)
+	return i, err
+}
+
+const getSkill_req = `-- name: GetSkill_req :one
+SELECT skill_id, posting_id FROM skills_req WHERE posting_id = $1 AND skill_id = $2
+`
+
+type GetSkill_reqParams struct {
+	PostingID int32
+	SkillID   int32
+}
+
+func (q *Queries) GetSkill_req(ctx context.Context, arg GetSkill_reqParams) (SkillsReq, error) {
+	row := q.db.QueryRowContext(ctx, getSkill_req, arg.PostingID, arg.SkillID)
+	var i SkillsReq
+	err := row.Scan(&i.SkillID, &i.PostingID)
 	return i, err
 }
 
@@ -535,6 +810,68 @@ func (q *Queries) GetUserByID(ctx context.Context, userID int32) (User, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getUsersByRoleID = `-- name: GetUsersByRoleID :many
+SELECT DISTINCT role_master.id, users.user_id, users.username, users.email
+FROM role_master
+JOIN users
+ON role_master.id = users.role_id
+WHERE role_master.id = $1
+`
+
+type GetUsersByRoleIDRow struct {
+	ID       int32
+	UserID   int32
+	Username string
+	Email    string
+}
+
+func (q *Queries) GetUsersByRoleID(ctx context.Context, id int32) ([]GetUsersByRoleIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersByRoleID, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUsersByRoleIDRow
+	for rows.Next() {
+		var i GetUsersByRoleIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Username,
+			&i.Email,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const interview_exists = `-- name: Interview_exists :one
+SELECT EXISTS (
+    SELECT 1 FROM interview
+    WHERE posting_id = $1 AND user_id = $2
+) AS exists
+`
+
+type Interview_existsParams struct {
+	PostingID int32
+	UserID    int32
+}
+
+func (q *Queries) Interview_exists(ctx context.Context, arg Interview_existsParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, interview_exists, arg.PostingID, arg.UserID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const newApplicantSkill = `-- name: NewApplicantSkill :exec
@@ -612,6 +949,42 @@ func (q *Queries) UpdateApplicantProfile(ctx context.Context, arg UpdateApplican
 	return err
 }
 
+const updateInterviewAnotherDateReq = `-- name: UpdateInterviewAnotherDateReq :exec
+UPDATE
+interview
+SET anotherdate_req = TRUE, another_dateTime = $1
+WHERE interview.user_id = $2 AND posting_id = $3
+`
+
+type UpdateInterviewAnotherDateReqParams struct {
+	AnotherDatetime sql.NullTime
+	UserID          int32
+	PostingID       int32
+}
+
+func (q *Queries) UpdateInterviewAnotherDateReq(ctx context.Context, arg UpdateInterviewAnotherDateReqParams) error {
+	_, err := q.db.ExecContext(ctx, updateInterviewAnotherDateReq, arg.AnotherDatetime, arg.UserID, arg.PostingID)
+	return err
+}
+
+const updateInterviewDeclineComplete = `-- name: UpdateInterviewDeclineComplete :exec
+UPDATE
+interview
+SET declined_complete = $1, declined_complete = TRUE
+WHERE interview.user_id = $2 AND posting_id = $3
+`
+
+type UpdateInterviewDeclineCompleteParams struct {
+	DeclinedComplete bool
+	UserID           int32
+	PostingID        int32
+}
+
+func (q *Queries) UpdateInterviewDeclineComplete(ctx context.Context, arg UpdateInterviewDeclineCompleteParams) error {
+	_, err := q.db.ExecContext(ctx, updateInterviewDeclineComplete, arg.DeclinedComplete, arg.UserID, arg.PostingID)
+	return err
+}
+
 const updateJobPosting = `-- name: UpdateJobPosting :one
 UPDATE job_posting SET job_title = $1, job_description = $2 WHERE posting_id = $3 RETURNING posting_id, user_id, job_title, job_description, posting_date
 `
@@ -662,5 +1035,21 @@ type UpdateUserParams struct {
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 	_, err := q.db.ExecContext(ctx, updateUser, arg.Email, arg.Username, arg.UserID)
+	return err
+}
+
+const updateUserRoleID = `-- name: UpdateUserRoleID :exec
+UPDATE users
+SET role_id = $1
+WHERE user_id = $2
+`
+
+type UpdateUserRoleIDParams struct {
+	RoleID sql.NullInt32
+	UserID int32
+}
+
+func (q *Queries) UpdateUserRoleID(ctx context.Context, arg UpdateUserRoleIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserRoleID, arg.RoleID, arg.UserID)
 	return err
 }

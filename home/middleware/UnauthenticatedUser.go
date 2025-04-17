@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"home/initializers"
 	"home/products"
 	"net/http"
@@ -56,7 +57,9 @@ func UnauthenticatedUser(c *gin.Context) {
 
 				}
 			} else {
-				c.AbortWithStatus(http.StatusUnauthorized)
+				redirect_url := fmt.Sprintf("users/%d/group", req_user.UserID)
+				c.Redirect(http.StatusFound, redirect_url)
+				return
 			}
 
 		}

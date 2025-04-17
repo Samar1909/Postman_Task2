@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS recruiter_profile(
     user_id INT PRIMARY KEY,
     company_name VARCHAR(50) UNIQUE,
     company_description TEXT,
+    approved BOOLEAN DEFAULT FALSE NOT NULL,
+    declined_completely BOOLEAN DEFAULT FALSE NOT NULL,
     FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
@@ -65,6 +67,19 @@ CREATE TABLE IF NOT EXISTS applicant_skills(
 CREATE TABLE IF NOT EXISTS jobposting_applicants(
     posting_id INT,
     user_id INT,
+    PRIMARY KEY(posting_id, user_id),
+    FOREIGN KEY(posting_id) REFERENCES job_posting(posting_id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS interview(
+    posting_id INT,
+    user_id INT,
+    interview_dateTime TIMESTAMP,
+    accepted BOOLEAN NOT NULL DEFAULT FALSE,
+    declined_complete BOOLEAN NOT NULL DEFAULT FALSE,
+    anotherdate_req BOOLEAN NOT NULL DEFAULT FALSE,
+    another_dateTime TIMESTAMP,
     PRIMARY KEY(posting_id, user_id),
     FOREIGN KEY(posting_id) REFERENCES job_posting(posting_id) ON DELETE CASCADE,
     FOREIGN KEY(user_id) REFERENCES users(user_id) ON DELETE CASCADE

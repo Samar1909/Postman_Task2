@@ -23,6 +23,16 @@ type ApplicantSkill struct {
 	UserID  int32
 }
 
+type Interview struct {
+	PostingID         int32
+	UserID            int32
+	InterviewDatetime sql.NullTime
+	Accepted          bool
+	DeclinedComplete  bool
+	AnotherdateReq    bool
+	AnotherDatetime   sql.NullTime
+}
+
 type JobPosting struct {
 	PostingID      int32
 	UserID         sql.NullInt32
@@ -40,6 +50,8 @@ type RecruiterProfile struct {
 	UserID             int32
 	CompanyName        sql.NullString
 	CompanyDescription sql.NullString
+	Approved           bool
+	DeclinedCompletely bool
 }
 
 type RoleMaster struct {

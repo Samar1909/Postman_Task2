@@ -11,6 +11,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -22,9 +23,15 @@ func init() {
 }
 
 func main() {
+	controllers.InitGoogleOauth()
 	r := gin.Default()
+	fmt.Println("Client ID:", os.Getenv("OAUTH_CLIENT_ID"))
+	fmt.Println("Client Secret:", os.Getenv("OAUTH_CLIENT_SECRET"))
 	r.LoadHTMLGlob("templates/*")
 	r.GET("/", middleware.UnauthenticatedUser, middleware.CSRFMiddleware, func(c *gin.Context) {
+		fmt.Println("in  login now")
+		fmt.Println("Client ID:", os.Getenv("OAUTH_CLIENT_ID"))
+		fmt.Println("Client Secret:", os.Getenv("OAUTH_CLIENT_SECRET"))
 		formToken, exists := c.Get("csrf_token")
 		fmt.Println(formToken)
 		if !exists {
@@ -62,9 +69,57 @@ func main() {
 		}
 	})
 	r.POST("/login", controllers.Login)
-	r.GET("/super_admin/home", middleware.AuthRequired, middleware.AllowedGroups(1), controllers.Super_admin_home)
+	r.GET("/auth/google/login", controllers.HandleGoogleLogin)
+	r.GET("/auth/google/callback", controllers.HandleGoogleCallback)
+	r.GET("/users/:user_id/group", middleware.AuthRequired, middleware.CSRFMiddleware, func(c *gin.Context) {
+		formToken, exists := c.Get("csrf_token")
+		fmt.Println(formToken)
+		if !exists {
+			fmt.Println("Got a server error")
+			c.AbortWithStatus(http.StatusInternalServerError)
+		}
+		c.HTML(http.StatusOK, "groups.html", gin.H{
+			"csrf_token": formToken,
+		})
+	})
+	r.POST("/users/:user_id/group", middleware.AuthRequired, controllers.UserGroups)
 
-	r.GET("/recruiter/home/", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterHome)
+	//superAdmin Endpoints
+	r.GET("/super_admin/home", middleware.AuthRequired, middleware.AllowedGroups(1), controllers.Super_admin_home)
+	r.GET("/super_admin/:user_id/profile", middleware.AuthRequired, middleware.AllowedGroups(1), controllers.SuperAdmin_recruiterProfile)
+	r.GET("/super_admin/:user_id/approve", middleware.AuthRequired, middleware.AllowedGroups(1), controllers.SuperAdmin_recruiterApprove)
+	r.GET("/super_admin/:user_id/decline", middleware.AuthRequired, middleware.AllowedGroups(1), controllers.SuperAdmin_recruiterDecline)
+
+	// Recruiters Endpoints
+	r.GET("/recruiter/super_admin/accessRestricted", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+		ctx := context.Background()
+		queries := products.New(initializers.DB)
+		user, exists := c.Get("user")
+		if !exists {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		req_user, ok := user.(products.User)
+		if !ok {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		results, err := queries.GetUsersByRoleID(ctx, 1)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.HTML(http.StatusOK, "recruiter_approve.html", gin.H{
+			"results":  results,
+			"title":    "Not Approved User",
+			"username": req_user.Username,
+		})
+
+	})
+	r.GET("/recruiter/home/", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.RecruiterHome)
 	r.GET("/recruiter/updateProfile/", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.CSRFMiddleware, func(c *gin.Context) {
 		formToken, exists := c.Get("csrf_token")
 		if !exists {
@@ -107,8 +162,8 @@ func main() {
 		})
 	})
 
-	r.POST("recruiter/updateProfile/", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterUpdateProfile)
-	r.GET("/recruiter/jobPosting/create", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.CSRFMiddleware, func(c *gin.Context) {
+	r.POST("recruiter/updateProfile/", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.RecruiterUpdateProfile)
+	r.GET("/recruiter/jobPosting/create", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, middleware.CSRFMiddleware, func(c *gin.Context) {
 		formToken, exists := c.Get("csrf_token")
 		if !exists {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -136,6 +191,10 @@ func main() {
 		ctx := context.Background()
 
 		posting_id, err := c.Cookie("posting_id")
+		fmt.Println("post_id", posting_id)
+
+		var job_title string
+		var job_description string
 
 		var job_posting products.JobPosting
 
@@ -148,6 +207,8 @@ func main() {
 				})
 				return
 			}
+			job_title, err = c.Cookie("job_title")
+			job_description, err = c.Cookie("job_description")
 			job_posting, err = queries.GetJobPosting(ctx, int32(posting_idInt))
 			if err != nil {
 				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -155,7 +216,10 @@ func main() {
 				})
 				return
 			}
+
 			// Clear the cookie after using it
+			c.SetCookie("job_title", "", -1, "/", "", false, false)
+			c.SetCookie("job_description", "", -1, "/", "", false, false)
 			c.SetCookie("posting_id", "", -1, "/", "", false, false)
 
 		} else {
@@ -182,17 +246,17 @@ func main() {
 			"profile_active":  "add_job_active",
 			"title":           "New Job Posting",
 			"posting_id":      job_posting.PostingID,
-			"job_title":       job_posting.JobTitle.String,
-			"job_description": job_posting.JobDescription.String,
+			"job_title":       job_title,
+			"job_description": job_description,
 			"skills_req":      skills_req,
 		})
 	})
 
-	r.GET("/recruiter/jobPosting/searchSkills", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.ApplicantSearchSkills)
-	r.POST("/recruiter/jobPosting/addSKill", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterAddSkill)
-	r.GET("/recruiter/jobPosting/addSKill/:skill_id/:posting_id", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterDeleteSkill)
-	r.POST("/recruiter/jobPosting/create", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterNewJobPosting)
-	r.GET("/recruiter/jobPostings/all", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+	r.GET("/recruiter/jobPosting/searchSkills", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.ApplicantSearchSkills)
+	r.POST("/recruiter/jobPosting/addSkill/", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.RecruiterAddSkill)
+	r.GET("/recruiter/jobPosting/deleteSkill/:skill_id/:posting_id", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.RecruiterDeleteSkill)
+	r.POST("/recruiter/jobPosting/create", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.RecruiterNewJobPosting)
+	r.GET("/recruiter/jobPostings/all", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, func(c *gin.Context) {
 		queries := products.New(initializers.DB)
 		ctx := context.Background()
 		user, exists := c.Get("user")
@@ -225,7 +289,7 @@ func main() {
 		})
 	})
 
-	r.GET("/recruiter/jobPostings/:posting_id", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+	r.GET("/recruiter/jobPostings/:posting_id", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, func(c *gin.Context) {
 		queries := products.New(initializers.DB)
 		ctx := context.Background()
 		posting_id := c.Param("posting_id")
@@ -281,7 +345,7 @@ func main() {
 		})
 
 	})
-	r.GET("/recruiter/jobPostings/:posting_id/applicants", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+	r.GET("/recruiter/jobPostings/:posting_id/applicants", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, func(c *gin.Context) {
 		queries := products.New(initializers.DB)
 		ctx := context.Background()
 		posting_id := c.Param("posting_id")
@@ -291,14 +355,25 @@ func main() {
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
+		job_posting, err := queries.GetJobPosting(ctx, int32(posting_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 		results, err := queries.GetJobApplicants(ctx, int32(posting_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 		c.HTML(http.StatusOK, "recruiter_jobApplicantsList.html", gin.H{
-			"title":     fmt.Sprintf("Job Applicants for %s", results[0].JobTitle.String),
+			"title":     fmt.Sprintf("Job Applicants for %s", job_posting.JobTitle.String),
 			"results":   results,
-			"Job_Title": results[0].JobTitle.String,
+			"Job_Title": job_posting.JobTitle,
 		})
 	})
-	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, func(c *gin.Context) {
 		queries := products.New(initializers.DB)
 		ctx := context.Background()
 		posting_id := c.Param("posting_id")
@@ -340,6 +415,25 @@ func main() {
 			c.SetCookie("resume_parse", "", -1, "/", "", false, false)
 
 		}
+
+		interview, err := c.Cookie("interview")
+
+		if err == nil && interview != "" {
+			// Cookie exists and has a value
+			c.HTML(http.StatusOK, "recruiter_jobApplicantsDetail.html", gin.H{
+				"title":        user.Username,
+				"user":         user,
+				"userProfile":  userProfile,
+				"posting_id":   posting_id,
+				"userSkills":   userSkills,
+				"resume_parse": resume_parseText,
+				"message":      interview,
+				"messageType":  "warning",
+			})
+			// Clear the cookie after using it
+			c.SetCookie("resume_parse", "", -1, "/", "", false, false)
+			return
+		}
 		c.HTML(http.StatusOK, "recruiter_jobApplicantsDetail.html", gin.H{
 			"title":        user.Username,
 			"user":         user,
@@ -349,7 +443,7 @@ func main() {
 			"resume_parse": resume_parseText,
 		})
 	})
-	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id/resume/download", middleware.AuthRequired, middleware.AllowedGroups(2), func(c *gin.Context) {
+	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id/resume/download", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, func(c *gin.Context) {
 		queries := products.New(initializers.DB)
 		ctx := context.Background()
 		posting_id := c.Param("posting_id")
@@ -375,7 +469,57 @@ func main() {
 		c.Redirect(http.StatusFound, redirect_url)
 	})
 
-	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id/resume/extract", middleware.AuthRequired, middleware.AllowedGroups(2), controllers.RecruiterResumeImport)
+	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id/resume/extract", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.RecruiterResumeImport)
+	r.GET("/recruiter/jobPostings/:posting_id/applicants/:user_id/interview", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, middleware.CSRFMiddleware, func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+		formToken, exists := c.Get("csrf_token")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "CSRF verification failed",
+			})
+			return
+		}
+		user_id := c.Param("user_id")
+		user_idInt, err := strconv.Atoi(user_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		posting_id := c.Param("posting_id")
+		posting_idInt, err := strconv.Atoi(posting_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		exists, err = queries.Interview_exists(ctx, products.Interview_existsParams{
+			PostingID: int32(posting_idInt),
+			UserID:    int32(user_idInt),
+		})
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		if exists {
+			c.SetCookie("interview", "You have already sent Interview request to this candidate", 5, "/", "", false, true)
+		}
+		user, err := queries.GetUserByID(ctx, int32(user_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.HTML(http.StatusOK, "recruiter_interviewForm.html", gin.H{
+			"csrf_token": formToken,
+			"title":      "Interview",
+			"username":   user.Username,
+		})
+	})
+	r.POST("/recruiter/jobPostings/:posting_id/applicants/:user_id/interview", middleware.AuthRequired, middleware.AllowedGroups(2), middleware.SuperAdmin_approve, controllers.RecruiterSubmitInterviewForm)
 
 	// Applicant Endpoints
 	r.GET("/applicant/home", middleware.AuthRequired, middleware.AllowedGroups(3), controllers.ApplicantHome)
@@ -523,6 +667,19 @@ func main() {
 			c.AbortWithStatus(http.StatusInternalServerError)
 			return
 		}
+
+		user, exists := c.Get("user")
+		if !exists {
+			fmt.Println("1")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		req_user, ok := user.(products.User)
+		if !ok {
+			fmt.Println("2")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
 		job_posting, err := queries.GetJobPosting(ctx, int32(posting_idInt))
 		if err != nil {
 			log.Fatal(err.Error())
@@ -559,6 +716,16 @@ func main() {
 			return
 		}
 
+		exists, err = queries.CheckJobPosting_applicant(ctx, products.CheckJobPosting_applicantParams{
+			PostingID: job_posting.PostingID,
+			UserID:    req_user.UserID,
+		})
+		if err != nil {
+			log.Fatal("Posting date is null")
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
 		c.HTML(http.StatusOK, "applicant_jobPostingDetail.html", gin.H{
 			"title":             job_posting.JobTitle.String,
 			"job_posting":       job_posting,
@@ -566,6 +733,7 @@ func main() {
 			"skills_req":        skills_req,
 			"recruiter_user":    recruiter_user,
 			"posting_date":      postingDate,
+			"applied":           exists,
 		})
 
 	})
@@ -601,6 +769,134 @@ func main() {
 		})
 		c.Redirect(http.StatusFound, "/")
 	})
+	r.GET("/applicant/interview/all", middleware.AuthRequired, middleware.AllowedGroups(3), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+
+		user, exists := c.Get("user")
+		if !exists {
+			fmt.Println("1")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		req_user, ok := user.(products.User)
+		if !ok {
+			fmt.Println("2")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		results, err := queries.GetInterviews(ctx, req_user.UserID)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		c.HTML(http.StatusFound, "applicant_interviewList.html", gin.H{
+			"title":            "My Interviews",
+			"interview_active": "active",
+			"results":          results,
+		})
+	})
+
+	r.GET("/applicant/interview/:posting_id/:user_id", middleware.AuthRequired, middleware.AllowedGroups(3), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+
+		user_id := c.Param("user_id")
+		user_idInt, err := strconv.Atoi(user_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		posting_id := c.Param("posting_id")
+		posting_idInt, err := strconv.Atoi(posting_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		current_interview, err := queries.GetInterviewDetails(ctx, products.GetInterviewDetailsParams{
+			UserID:    int32(user_idInt),
+			PostingID: int32(posting_idInt),
+		})
+
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		skills_req, err := queries.GetRequiredSkills(ctx, int32(posting_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		interview_date := fmt.Sprintf("%02d/%02d/%d", current_interview.InterviewDatetime.Time.Day(), current_interview.InterviewDatetime.Time.Month(), current_interview.InterviewDatetime.Time.Year())
+		interview_day := current_interview.InterviewDatetime.Time.Weekday().String()
+		interview_time := fmt.Sprintf("%02d:%02d", current_interview.InterviewDatetime.Time.Hour(), current_interview.InterviewDatetime.Time.Minute())
+
+		c.HTML(http.StatusOK, "applicant_interviewDetail.html", gin.H{
+			"title":             fmt.Sprintf("Interview request for %s", current_interview.JobTitle),
+			"current_interview": current_interview,
+			"skills_req":        skills_req,
+			"interview_date":    interview_date,
+			"interview_day":     interview_day,
+			"interview_time":    interview_time,
+		})
+
+	})
+
+	r.GET("/applicant/interview/:posting_id/:user_id/decline/", middleware.AuthRequired, middleware.AllowedGroups(3), func(c *gin.Context) {
+		queries := products.New(initializers.DB)
+		ctx := context.Background()
+
+		user_id := c.Param("user_id")
+		user_idInt, err := strconv.Atoi(user_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		posting_id := c.Param("posting_id")
+		posting_idInt, err := strconv.Atoi(posting_id)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+
+		if err = queries.UpdateInterviewDeclineComplete(ctx, products.UpdateInterviewDeclineCompleteParams{
+			DeclinedComplete: true,
+			UserID:           int32(user_idInt),
+			PostingID:        int32(posting_idInt),
+		}); err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+		redirect_url := fmt.Sprintf("/applicant/interview/%s/%s", posting_id, user_id)
+		c.Redirect(http.StatusFound, redirect_url)
+
+	})
+
+	r.GET("/applicant/interview/:posting_id/:user_id/decline/anotherDate", middleware.AuthRequired, middleware.AllowedGroups(3), middleware.CSRFMiddleware, func(c *gin.Context) {
+		formToken, exists := c.Get("csrf_token")
+		if !exists {
+			log.Fatal("Csrf verification failed")
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		c.HTML(http.StatusOK, "applicant_interviewAnotherDate.html", gin.H{
+			"csrf_token": formToken,
+			"title":      "Rescheduling Interview",
+		})
+	})
+	r.POST("/applicant/interview/:posting_id/:user_id/decline/anotherDate", middleware.AuthRequired, middleware.AllowedGroups(3), controllers.ApplicantRequestAnotherDate)
 
 	//applicant views end here
 	r.GET("logout/", middleware.AuthRequired, middleware.CSRFMiddleware, controllers.LogOut)

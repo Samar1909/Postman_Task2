@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Groups</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet"/>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet"/>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="border-bottom mb-3">Select Role</h1>
+        <h4 class="text-secondary mb-4">(You cannot change your role after this)</h4>
+        <form method="post" action="">
+            <input type="hidden" name="csrf_token" value="{{ .csrf_token }}">
+            <fieldset class="border p-3 rounded">
+                <legend class="float-none w-auto p-2">Role</legend>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="super_admin" name="role" value="Super Admin" checked>
+                        <label class="form-check-label" for="super_admin">Super Admin</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="recruiter" name="role" value="Recruiter">
+                        <label class="form-check-label" for="recruiter">Recruiter</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="applicant" name="role" value="Applicant">
+                        <label class="form-check-label" for="applicant">Applicant</label>
+                    </div>
+                </div>
+            </fieldset>
+            <button type="submit" class="btn btn-primary mt-3">Submit</button>
+        </form>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

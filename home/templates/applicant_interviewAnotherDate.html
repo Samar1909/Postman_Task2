@@ -1,0 +1,21 @@
+{{template "header.html" .}}
+
+{{template "applicant_menu.html" .}}
+<h1 class="border-bottom mb-4 mt-3">Rescheduling Interview</h1>
+<form method="post" action="">
+<input type="hidden" value="{{.csrf_token}}" name = "csrf_token">
+<div class="mb-3">
+    <label for="first_name" class="form-label fw-semibold fs-4">Date: </label>
+    <input type="date" class="form-control" id="interview_date" name="interview_date" 
+    required>
+</div>
+<div class="mb-3">
+    <label for="first_name" class="form-label fw-semibold fs-4">Time: </label>
+    <input type="time" class="form-control" id="interview_time" name="interview_time" 
+    required>
+</div>
+<div class="mb-3">
+    <button type="submit" class = "btn btn-primary">Submit</button>
+</div>
+</form>
+{{template "footer.html" .}}

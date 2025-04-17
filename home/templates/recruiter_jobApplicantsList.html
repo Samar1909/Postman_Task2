@@ -1,9 +1,10 @@
 {{template  "header.html" .}}
 
 {{template "recruiter_menu.html" .}}
-<h1 class="border-bottom mb-4">Job Applicants For {{.Job_Title}}</h1>
+<h1 class="border-bottom mb-4">Job Applicants For {{.Job_Title.String}}</h1>
    
 <div class = "container content-section">
+    {{if .results}}
     <table class="table">
         <thead>
         <tr>
@@ -12,14 +13,20 @@
        </tr>
         </thead>
         <tbody>
+            
             {{range .results }}
             <tr>
                 <th scope="row"><a href = "/recruiter/jobPostings/{{.PostingID}}/applicants/{{.UserID}}">{{.Username}}</a></th>
                 <td>{{.Email}}</td>
             </tr>
             {{end}}
+            
+            
         </tbody>
     </table>
+    {{else}}
+    <h2 class = "badge text-bg-primary text-wrap fs-5">No applicants Yet</h2>
+    {{end}}
 </div>
 
 {{template "footer.html" .}}

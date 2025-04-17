@@ -172,7 +172,9 @@ func RecruiterAddSkill(c *gin.Context) {
 	queries := products.New(initializers.DB)
 
 	posting_id := c.PostForm("posting_id")
-	fmt.Println(posting_id)
+	job_title := c.PostForm("job_title")
+	job_description := c.PostForm("job_description")
+	fmt.Println("posting_id in addSKill view:- ", posting_id)
 	posting_idInt, err := strconv.Atoi(posting_id)
 	if err != nil {
 		c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
@@ -198,7 +200,10 @@ func RecruiterAddSkill(c *gin.Context) {
 		})
 
 	} else {
-		_, err := queries.GetApplicantSkill(ctx, skill_obj.SkillID)
+		_, err := queries.GetSkill_req(ctx, products.GetSkill_reqParams{
+			PostingID: int32(posting_idInt),
+			SkillID:   skill_obj.SkillID,
+		})
 		if err != nil {
 			queries.CreateSkill_Req(ctx, products.CreateSkill_ReqParams{
 				PostingID: int32(posting_idInt),
@@ -207,6 +212,8 @@ func RecruiterAddSkill(c *gin.Context) {
 		}
 	}
 	c.SetCookie("posting_id", posting_id, 5, "/", "", false, true)
+	c.SetCookie("job_title", job_title, 5, "/", "", false, true)
+	c.SetCookie("job_description", job_description, 5, "/", "", false, true)
 	c.Redirect(http.StatusFound, "/recruiter/jobPosting/create")
 }
 
@@ -295,26 +302,46 @@ func RecruiterNewJobPosting(c *gin.Context) {
 		return
 	}
 
-	new_jobPosting, err := queries.UpdateJobPosting(ctx, products.UpdateJobPostingParams{
-		PostingID:      int32(posting_idInt),
-		JobTitle:       sql.NullString{Valid: true, String: JobTitle},
-		JobDescription: sql.NullString{Valid: true, String: JobDescription},
-	})
-	fmt.Println(new_jobPosting.JobTitle.String)
-	fmt.Println(new_jobPosting.JobDescription.String)
+	if JobTitle != "" || JobDescription != "" {
+		new_jobPosting, err := queries.UpdateJobPosting(ctx, products.UpdateJobPostingParams{
+			PostingID:      int32(posting_idInt),
+			JobTitle:       sql.NullString{Valid: true, String: JobTitle},
+			JobDescription: sql.NullString{Valid: true, String: JobDescription},
+		})
+		fmt.Println(new_jobPosting.JobTitle.String)
+		fmt.Println(new_jobPosting.JobDescription.String)
 
-	if err != nil {
-		log.Fatal(err.Error())
-		c.AbortWithStatus(http.StatusInternalServerError)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+		}
+
+		err = queries.DeleteJobPosting(ctx)
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+		}
+
+		c.Redirect(http.StatusFound, "/recruiter/jobPostings/all")
+	} else {
+		skills_req, err := queries.GetRequiredSkills(ctx, int32(posting_idInt))
+		if err != nil {
+			log.Fatal(err.Error())
+			c.AbortWithStatus(http.StatusInternalServerError)
+		}
+		c.HTML(http.StatusFound, "recruiter_createJobPosting.html", gin.H{
+			"csrf_token":      formToken,
+			"add_job_active":  "active",
+			"title":           "New Job Posting",
+			"posting_id":      posting_id,
+			"job_title":       JobTitle,
+			"job_description": JobDescription,
+			"skills_req":      skills_req,
+			"message":         "No field can be left blank",
+			"messageType":     "danger",
+		})
+		return
 	}
-
-	err = queries.DeleteJobPosting(ctx)
-	if err != nil {
-		log.Fatal(err.Error())
-		c.AbortWithStatus(http.StatusInternalServerError)
-	}
-
-	c.Redirect(http.StatusFound, "/recruiter/home/")
 
 }
 
@@ -415,4 +442,123 @@ func RecruiterResumeImport(c *gin.Context) {
 	redirect_url := fmt.Sprintf("/recruiter/jobPostings/%s/applicants/%s", posting_id, user_id)
 	c.Redirect(http.StatusFound, redirect_url)
 
+}
+
+func RecruiterSubmitInterviewForm(c *gin.Context) {
+	ctx := context.Background()
+	queries := products.New(initializers.DB)
+
+	// CSRF Verification
+	csrf_token, err := c.Cookie("CSRF_Token")
+
+	if err != nil {
+		fmt.Println("3")
+		c.AbortWithStatus(http.StatusUnauthorized)
+	}
+	formToken := c.PostForm("csrf_token")
+	fmt.Println(csrf_token)
+	fmt.Println(formToken)
+	if csrf_token != formToken {
+		fmt.Println("4")
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "CSRF_Token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false,
+		SameSite: http.SameSiteStrictMode,
+		Expires:  time.Unix(0, 0),
+		MaxAge:   -1,
+	})
+
+	user_id := c.Param("user_id")
+	user_idInt, err := strconv.Atoi(user_id)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+	posting_id := c.Param("posting_id")
+	posting_idInt, err := strconv.Atoi(posting_id)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	user, err := queries.GetUserByID(ctx, int32(user_idInt))
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	timeStr := c.PostForm("interview_time")
+	dateStr := c.PostForm("interview_date")
+
+	interview_time, err := time.Parse("15:04", timeStr)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.HTML(http.StatusOK, "recruiter_interviewForm.html", gin.H{
+			"csrf_token":  formToken,
+			"title":       "Interview",
+			"username":    user.Username,
+			"message":     "Invalid date or time",
+			"messageType": "danger",
+		})
+		return
+	}
+	interview_date, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		log.Fatal(err.Error())
+		c.HTML(http.StatusOK, "recruiter_interviewForm.html", gin.H{
+			"csrf_token":  formToken,
+			"title":       "Interview",
+			"username":    user.Username,
+			"message":     "Invalid date or time",
+			"messageType": "danger",
+		})
+		return
+	}
+	interview_dateTime := time.Date(
+		interview_date.Year(),
+		interview_date.Month(),
+		interview_date.Day(),
+		interview_time.Hour(),
+		interview_time.Minute(),
+		interview_date.Second(),
+		interview_date.Nanosecond(),
+		time.Local,
+	)
+
+	//The entered date and time should not be before the current time
+	if interview_dateTime.Before(time.Now()) {
+		c.HTML(http.StatusOK, "recruiter_interviewForm.html", gin.H{
+			"csrf_token":  formToken,
+			"title":       "Interview",
+			"username":    user.Username,
+			"message":     "The entered date and time should not be before the current time",
+			"messageType": "danger",
+		})
+		return
+	}
+	newInterview, err := queries.CreateInterview(ctx, products.CreateInterviewParams{
+		UserID:            int32(user_idInt),
+		PostingID:         int32(posting_idInt),
+		InterviewDatetime: sql.NullTime{Valid: true, Time: interview_dateTime},
+	})
+
+	if err != nil {
+		log.Fatal(err.Error())
+		c.AbortWithStatus(http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Println(newInterview.InterviewDatetime.Time)
+	redirect_url := fmt.Sprintf("/recruiter/jobPostings/%s/applicants/%s/", posting_id, user_id)
+	c.Redirect(http.StatusFound, redirect_url)
 }
